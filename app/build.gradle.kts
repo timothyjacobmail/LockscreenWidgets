@@ -30,7 +30,7 @@ android {
         minSdk = minSdkVersion
         targetSdk = targetSdkVersion
         versionCode = 221
-        versionName = "4.7.4"
+        versionName = "4.7.4-fast.1"
 
         manifestPlaceholders["build_uuid"] = UUID.nameUUIDFromBytes("LockscreenWidgets_${versionCode}".toByteArray()).toString()
         manifestPlaceholders["isDebug"] = false
@@ -117,6 +117,9 @@ bugsnag {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.coroutines.get()}")
+
     implementation(fileTree("libs") { include("*.jar") })
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlin.reflect)

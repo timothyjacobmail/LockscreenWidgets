@@ -207,7 +207,17 @@ open class WidgetFrameDelegate protected constructor(
 
     private val animationMutex = Mutex()
 
-    private var pendingShowJob: Job? = null
+    private val visibilityController by lazy {
+        FrameVisibilityController(
+            scope = lifecycleScope,
+            showDelayMillis = WINDOW_ADD_DEBOUNCE_DELAY.inWholeMilliseconds,
+            shouldShow = ::canShow,
+            isAttached = { rootView.isAttachedToWindow },
+            show = ::addWindow,
+            hide = ::removeWindow,
+            onSettled = ::updateAccessibilityPass,
+        )
+    }
 
     override val rootView by lazy {
         viewModel.createComposeViewHolder {
@@ -652,28 +662,8 @@ open class WidgetFrameDelegate protected constructor(
     }
 
     suspend fun updateWindowState(updateAccessibility: Boolean = false) {
-        if (canShow()) {
-            pendingShowJob?.cancel()
-
-            val job = lifecycleScope.launch {
-                delay(WINDOW_ADD_DEBOUNCE_DELAY)
-
-                // Make sure we can still show the frame.
-                if (canShow()) {
-                    if (updateAccessibility) updateAccessibilityPass()
-                    addWindow()
-                }
-            }
-            pendingShowJob = job
-            job.join()
-        } else {
-            pendingShowJob?.cancel()
-
-            lifecycleScope.launch {
-                removeWindow()
-                if (updateAccessibility) updateAccessibilityPass()
-            }.join()
-        }
+        if (updateAccessibility) updateAccessibilityPass()
+        visibilityController.requestUpdate()
     }
 
     /**

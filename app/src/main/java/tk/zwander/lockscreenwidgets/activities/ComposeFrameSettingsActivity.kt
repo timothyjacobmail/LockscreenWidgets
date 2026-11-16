@@ -623,7 +623,7 @@ class ComposeFrameSettingsActivity : BaseActivity() {
                         summary = { stringResource(R.string.settings_screen_animation_duration_desc) },
                         key = { PrefManager.KEY_ANIMATION_DURATION },
                         icon = { painterResource(R.drawable.ic_baseline_timer_24) },
-                        defaultValue = { 300 },
+                        defaultValue = { 120 },
                         enabled = booleanPreferenceDependency(PrefManager.KEY_ANIMATE_SHOW_HIDE),
                         minValue = { 0 },
                         maxValue = { 2000 },

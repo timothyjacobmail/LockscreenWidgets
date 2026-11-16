@@ -570,7 +570,7 @@ class PrefManager private constructor(private val context: Context) {
 
     //The duration of the fade-in/out animation.
     var animationDuration: Int
-        get() = getInt(KEY_ANIMATION_DURATION, 300)
+        get() = getInt(KEY_ANIMATION_DURATION, 120)
         set(value) {
             putInt(KEY_ANIMATION_DURATION, value)
         }
