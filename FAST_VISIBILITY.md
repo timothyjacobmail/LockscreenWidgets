@@ -1,6 +1,6 @@
 # Faster widget visibility
 
-Version `4.7.4-fast.2` keeps each frame window, Compose hierarchy, and hosted widgets
+Version `4.7.4-fast.3` keeps each frame window, Compose hierarchy, and hosted widgets
 attached after their first appearance. Hiding sets window alpha to zero, disables
 input, hides accessibility descendants, clears screen-on flags, and stops the frame
 lifecycle/Compose animation clock. Waking restores the same window without another
@@ -42,3 +42,12 @@ screen-off/wake, drawer button/tap/swipe opening, closing, and handle recovery.
 A locally signed APK cannot update an upstream APK signed by Zachary Wander.
 Back up settings before replacing an upstream installation. Later builds using the
 same local signing key can update this fork in place with `adb install -r`.
+
+## Easier drawer gestures (fast.3)
+
+The handle keeps its configured visible width but has at least a 32 dp touch area.
+An inward swipe now opens after 12 dp instead of 100 dp. Android touch slop is
+counted once; the initial drag movement is retained. The release decision runs
+after queued movement updates, ignores tiny direction jitter, and cancels on an
+interrupted touch. Vertical handle movement is enabled only during repositioning,
+so ordinary diagonal swipes can open the drawer. Tap-to-open remains available.

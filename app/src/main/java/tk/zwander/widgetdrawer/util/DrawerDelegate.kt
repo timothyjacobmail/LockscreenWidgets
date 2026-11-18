@@ -55,14 +55,14 @@ import tk.zwander.widgetdrawer.activities.TaskerIsShowingDrawer
 import tk.zwander.widgetdrawer.activities.add.AddDrawerWidgetActivity
 import tk.zwander.widgetdrawer.activities.add.ReconfigureDrawerWidgetActivity
 import tk.zwander.widgetdrawer.compose.DrawerLayout
-import kotlin.math.absoluteValue
-import kotlin.math.sign
 
 class DrawerDelegate private constructor(context: Context, displayId: String) :
     BaseDelegate<DrawerDelegate.State>(context = context, targetDisplayId = MutableStateFlow(displayId)),
     IDrawerProvider {
     companion object {
         const val ID = -2
+        const val MIN_HANDLE_TOUCH_WIDTH_DP = 32
+        const val OPEN_SWIPE_DISTANCE_DP = 12
 
         @SuppressLint("StaticFieldLeak")
         private val instance = MutableStateFlow<DrawerDelegate?>(null)
@@ -175,7 +175,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
 
             this@DrawerDelegate.display?.let { display ->
-                width = display.dpToPx(context.prefManager.drawerHandleWidth)
+                width = display.dpToPx(context.prefManager.drawerHandleWidth.coerceAtLeast(MIN_HANDLE_TOUCH_WIDTH_DP))
                 height = display.dpToPx(context.prefManager.drawerHandleHeight)
             }
 
@@ -194,20 +194,8 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
                 updateWindow = {
                     windowUpdateRequests.trySend(Unit)
                 },
-                scrollOpenFinish = { from ->
+                scrollOpenFinish = { metThreshold ->
                     viewModel.drawerScrollInAnimator.getAndUpdate { null }?.cancel()
-
-                    val distanceFromEdge = (params.width + params.x).absoluteValue
-                    val touchSlop = ViewConfiguration.get(this@DrawerDelegate).scaledTouchSlop
-                    @Suppress("RtlHardcoded")
-                    val velocityMatches = when {
-                        viewModel.latestScrollInVelocity.value.absoluteValue < touchSlop -> true
-                        from == Gravity.LEFT -> viewModel.latestScrollInVelocity.value > 0
-                        else -> viewModel.latestScrollInVelocity.value < 0
-                    }
-                    val metThreshold = this@DrawerDelegate.display?.let { display ->
-                        distanceFromEdge > display.dpToPx(100f) && velocityMatches
-                    } ?: false
 
                     val animator = ValueAnimator.ofInt(params.x, if (metThreshold) 0 else -params.width)
                     animator.addUpdateListener { anim ->
@@ -290,7 +278,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
     override val viewModel = DrawerViewModel(this)
 
     @SuppressLint("RtlHardcoded")
-    private fun scrollInDrawer(from: Int, dist: Float, initial: Boolean, velocity: Float) {
+    private fun scrollInDrawer(from: Int, dist: Float, initial: Boolean) {
         if (!initial && !viewModel.scrollingOpen.value) {
             // This drag-position update was queued before the pointer lifted, but is only
             // being processed now, after ScrollOpenFinish already started the settle
@@ -303,12 +291,6 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
 
         viewModel.drawerScrollInAnimator.getAndUpdate { null }?.cancel()
 
-        if (velocity.sign != viewModel.latestScrollInVelocity.value.sign) {
-            viewModel.latestScrollInVelocity.value = 0f
-        }
-
-        viewModel.latestScrollInVelocity.value += velocity
-
         val distanceFromEdge = if (from == Gravity.LEFT) {
             (params.width + dist)
         } else {
@@ -316,7 +298,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
         }
 
         params.gravity = from
-        params.x = -distanceFromEdge.toInt()
+        params.x = -distanceFromEdge.toInt().coerceIn(0, params.width)
 
         if (initial) {
             viewModel.viewModelScope.launch {
@@ -543,7 +525,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
 
     override suspend fun onDisplayChanged() {
         this@DrawerDelegate.display?.let { display ->
-            handleParams.width = display.dpToPx(context.prefManager.drawerHandleWidth)
+            handleParams.width = display.dpToPx(context.prefManager.drawerHandleWidth.coerceAtLeast(MIN_HANDLE_TOUCH_WIDTH_DP))
             handleParams.height = display.dpToPx(context.prefManager.drawerHandleHeight)
 
             display.rotatedRealSize.let { displaySize ->
@@ -600,7 +582,6 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
     class DrawerViewModel(delegate: DrawerDelegate) :
         BaseViewModel<State, DrawerDelegate>(delegate) {
         val scrollingOpen = MutableStateFlow(false)
-        val latestScrollInVelocity = MutableStateFlow(0f)
         val handleAnimationState = MutableStateFlow(AnimationState.IDLE)
         val drawerAnimationState = MutableStateFlow(AnimationState.IDLE)
         val drawerScrollInAnimator = MutableStateFlow<Animator?>(null)

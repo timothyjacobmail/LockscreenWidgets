@@ -15,9 +15,12 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.absolutePadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -38,7 +41,6 @@ import tk.zwander.common.util.prefManager
 import tk.zwander.common.util.vibrate
 import tk.zwander.lockscreenwidgets.R
 import tk.zwander.widgetdrawer.util.DrawerDelegate
-import kotlin.math.absoluteValue
 import kotlin.math.sign
 
 @SuppressLint("RtlHardcoded")
@@ -48,8 +50,8 @@ fun DrawerDelegate.DrawerViewModel.DrawerHandle(
     params: WindowManager.LayoutParams,
     displayId: String,
     updateWindow: () -> Unit,
-    scrollOpenFinish: (from: Int) -> Unit,
-    scrollInDrawer: (from: Int, dist: Float, initial: Boolean, velocity: Float) -> Unit,
+    scrollOpenFinish: (open: Boolean) -> Unit,
+    scrollInDrawer: (from: Int, dist: Float, initial: Boolean) -> Unit,
     showDrawer: suspend () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -92,7 +94,7 @@ fun DrawerDelegate.DrawerViewModel.DrawerHandle(
 
     LaunchedEffect(width, height) {
         with(density) {
-            params.width = width.dp.roundToPx()
+            params.width = width.coerceAtLeast(DrawerDelegate.MIN_HANDLE_TOUCH_WIDTH_DP).dp.roundToPx()
             params.height = height.dp.roundToPx()
             updateWindow()
         }
@@ -103,6 +105,7 @@ fun DrawerDelegate.DrawerViewModel.DrawerHandle(
     }
     var isScrollingOpen by this.scrollingOpen.collectAsMutableState()
     var scrollTotalX by remember { mutableFloatStateOf(0f) }
+    var gestureCancelled by remember { mutableStateOf(false) }
 
     val shownColor by animateColorAsState(
         targetValue = if (isMoving) {
@@ -144,30 +147,13 @@ fun DrawerDelegate.DrawerViewModel.DrawerHandle(
     Box(
         modifier = modifier
             .systemGestureExclusion()
-            .absolutePadding(
-                left = if (side == Gravity.LEFT) 0.dp else 4.dp,
-                right = if (side == Gravity.RIGHT) 0.dp else 4.dp,
-                bottom = 4.dp,
-            )
-            .shadow(
-                elevation = animatedElevation,
-                shape = handleShape,
-                clip = false,
-            )
-            .background(
-                color = shownColor,
-                shape = handleShape,
-            )
             .motionEventSpy { event ->
                 when (event.action) {
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (updatedScrollingOpen) {
-                            scrollOpenFinish(updatedSide)
-                        }
-
-                        isScrollingOpen = false
+                    MotionEvent.ACTION_DOWN -> gestureCancelled = false
+                    MotionEvent.ACTION_UP -> isMoving = false
+                    MotionEvent.ACTION_CANCEL -> {
+                        gestureCancelled = true
                         isMoving = false
-                        scrollTotalX = 0f
                     }
 
                     MotionEvent.ACTION_MOVE -> {
@@ -198,34 +184,33 @@ fun DrawerDelegate.DrawerViewModel.DrawerHandle(
             }
             .draggable(
                 state = rememberDraggableState { offset ->
-                    if (!updatedScrollingOpen) {
-                        scrollTotalX += offset
-                        if (scrollTotalX.absoluteValue > touchSlop) {
-                            scrollTotalX = touchSlop * offset.sign
-                            context.vibrate(25L)
-                            isScrollingOpen = true
-
-                            scrollInDrawer(
-                                updatedSide,
-                                -scrollTotalX,
-                                true,
-                                offset,
-                            )
-                        }
-                    } else {
-                        scrollTotalX += offset
-
-                        scrollInDrawer(
-                            updatedSide,
-                            -scrollTotalX,
-                            false,
-                            offset,
-                        )
+                    scrollTotalX += offset
+                    val inward = if (updatedSide == Gravity.LEFT) scrollTotalX else -scrollTotalX
+                    if (!scrollingOpen.value && inward > 0f) {
+                        // draggable already crossed Android's touch slop. Count that travel
+                        // once, instead of requiring a second slop and discarding the first delta.
+                        scrollTotalX += touchSlop * offset.sign
+                        isScrollingOpen = true
+                        context.vibrate(25L)
+                        scrollInDrawer(updatedSide, -scrollTotalX, true)
+                    } else if (scrollingOpen.value) {
+                        scrollInDrawer(updatedSide, -scrollTotalX, false)
                     }
                 },
                 orientation = Orientation.Horizontal,
                 enabled = !isMoving,
                 interactionSource = interactionSource,
+                onDragStopped = {
+                    // Run after queued drag deltas, not from the raw ACTION_UP spy.
+                    // Tiny release jitter no longer overrides an otherwise completed swipe.
+                    if (scrollingOpen.value) {
+                        val inward = if (updatedSide == Gravity.LEFT) scrollTotalX else -scrollTotalX
+                        val threshold = with(density) { DrawerDelegate.OPEN_SWIPE_DISTANCE_DP.dp.toPx() }
+                        isScrollingOpen = false
+                        scrollOpenFinish(!gestureCancelled && inward >= threshold)
+                    }
+                    scrollTotalX = 0f
+                },
             )
             .draggable(
                 state = rememberDraggableState { offset ->
@@ -235,6 +220,7 @@ fun DrawerDelegate.DrawerViewModel.DrawerHandle(
                     }
                 },
                 orientation = Orientation.Vertical,
+                enabled = isMoving,
                 interactionSource = interactionSource,
                 onDragStopped = {
                     context.prefManager.drawerHandleYPosition = params.y
@@ -268,5 +254,26 @@ fun DrawerDelegate.DrawerViewModel.DrawerHandle(
                 },
                 enabled = !isMoving,
             ),
-    )
+    ) {
+        Box(
+            modifier = Modifier
+                .align(if (side == Gravity.LEFT) Alignment.CenterStart else Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(width.dp)
+                .absolutePadding(
+                    left = if (side == Gravity.LEFT) 0.dp else 4.dp,
+                    right = if (side == Gravity.RIGHT) 0.dp else 4.dp,
+                    bottom = 4.dp,
+                )
+                .shadow(
+                    elevation = animatedElevation,
+                    shape = handleShape,
+                    clip = false,
+                )
+                .background(
+                    color = shownColor,
+                    shape = handleShape,
+                )
+        )
+    }
 }
