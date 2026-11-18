@@ -495,4 +495,11 @@
     <string name="frame_settings">Frame %s Settings</string>
 
     <string name="widget_stack_not_supported">This widget is not supported in stacks.</string>
+    <string name="drawer_handle_position">Handle Position</string>
+    <string name="drawer_handle_edge">Screen Edge</string>
+    <string name="drawer_handle_edge_desc">Choose which side of the screen holds the drawer handle.</string>
+    <string name="drawer_handle_edge_left">Left edge</string>
+    <string name="drawer_handle_edge_right">Right edge</string>
+    <string name="drawer_handle_vertical_position">Vertical Position</string>
+    <string name="drawer_handle_vertical_position_desc" formatted="false">0% is the top; 100% is the bottom. Changes apply immediately. You can also press and hold the handle, then drag it.</string>
 </resources>

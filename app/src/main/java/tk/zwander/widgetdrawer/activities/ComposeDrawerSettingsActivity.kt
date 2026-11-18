@@ -33,6 +33,14 @@ class ComposeDrawerSettingsActivity : BaseActivity() {
             val resources = LocalResources.current
             val commonSection = createCommonSection(BackupRestoreManager.Which.DRAWER)
             val prefs = rememberPreferenceScreen {
+                category(
+                    title = resources.getString(R.string.drawer_handle_position),
+                    key = "drawer_handle_position_category",
+                    collapsible = { false },
+                ) {
+                    preference(HandlePositionPreference())
+                }
+
                 commonSection.addToPreferenceScreen(this)
 
                 category(

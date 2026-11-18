@@ -1,6 +1,6 @@
 # Faster widget visibility
 
-Version `4.7.4-fast.3` keeps each frame window, Compose hierarchy, and hosted widgets
+Version `4.7.4-fast.4` keeps each frame window, Compose hierarchy, and hosted widgets
 attached after their first appearance. Hiding sets window alpha to zero, disables
 input, hides accessibility descendants, clears screen-on flags, and stops the frame
 lifecycle/Compose animation clock. Waking restores the same window without another
@@ -51,3 +51,12 @@ counted once; the initial drag movement is retained. The release decision runs
 after queued movement updates, ignores tiny direction jitter, and cancels on an
 interrupted touch. Vertical handle movement is enabled only during repositioning,
 so ordinary diagonal swipes can open the drawer. Tap-to-open remains available.
+
+## Handle positioning (fast.4)
+
+Drawer Settings starts with an expanded Handle Position section. Screen Edge selects
+left or right; Vertical Position moves the handle from top (0%) to bottom (100%)
+without hiding it behind the system bars. Settings apply immediately and reuse the
+existing saved position/side, including positions chosen by long-press dragging.
+The handle is clamped to the available height when resized or when the display rotates.
+The Lock Handle Position switch prevents dragging; explicit settings remain editable.

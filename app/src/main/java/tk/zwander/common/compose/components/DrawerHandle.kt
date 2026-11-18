@@ -41,6 +41,7 @@ import tk.zwander.common.util.prefManager
 import tk.zwander.common.util.vibrate
 import tk.zwander.lockscreenwidgets.R
 import tk.zwander.widgetdrawer.util.DrawerDelegate
+import tk.zwander.widgetdrawer.util.drawerHandleMaxY
 import kotlin.math.sign
 
 @SuppressLint("RtlHardcoded")
@@ -215,7 +216,8 @@ fun DrawerDelegate.DrawerViewModel.DrawerHandle(
             .draggable(
                 state = rememberDraggableState { offset ->
                     if (updatedIsMoving) {
-                        params.y += offset.toInt()
+                        val maxY = currentDisplay?.let { context.drawerHandleMaxY(it, height) } ?: 0
+                        params.y = (params.y + offset.toInt()).coerceIn(0, maxY)
                         updateWindow()
                     }
                 },

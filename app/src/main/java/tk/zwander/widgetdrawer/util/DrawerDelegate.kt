@@ -263,6 +263,13 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
                 hideHandle()
             }
         }
+        handler(
+            PrefManager.KEY_DRAWER_HANDLE_Y_VALUE,
+            PrefManager.KEY_DRAWER_HANDLE_SIDE,
+            PrefManager.KEY_DRAWER_HANDLE_HEIGHT,
+        ) {
+            updateHandlePosition()
+        }
         handler(PrefManager.KEY_LOCK_WIDGET_DRAWER) {
             viewModel.currentEditingInterfaceId.value = null
         }
@@ -455,6 +462,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
             ) return@withLock
 
             if (!handle.isAttachedToWindow) {
+                updateHandlePosition()
                 viewModel.handleAnimationState.value = AnimationState.ADDING
                 try {
                     handle.alpha = 0f
@@ -523,7 +531,18 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
         }
     }
 
+    private fun updateHandlePosition() {
+        display?.let { display ->
+            handleParams.gravity = Gravity.TOP or prefManager.drawerHandleSide
+            handleParams.y = prefManager.drawerHandleYPosition.coerceIn(
+                0, drawerHandleMaxY(display, prefManager.drawerHandleHeight),
+            )
+            windowUpdateRequests.trySend(Unit)
+        }
+    }
+
     override suspend fun onDisplayChanged() {
+        updateHandlePosition()
         this@DrawerDelegate.display?.let { display ->
             handleParams.width = display.dpToPx(context.prefManager.drawerHandleWidth.coerceAtLeast(MIN_HANDLE_TOUCH_WIDTH_DP))
             handleParams.height = display.dpToPx(context.prefManager.drawerHandleHeight)
