@@ -36,6 +36,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import tk.zwander.common.activities.DismissOrUnlockActivity
 import tk.zwander.common.activities.SelectIconPackActivity
@@ -120,6 +122,9 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
             gravity = Gravity.TOP or Gravity.CENTER
         }
     }
+
+    private val drawerTransitionMutex = Mutex()
+    private val handleTransitionMutex = Mutex()
 
     private var previousNonZeroCutout by mutableIntStateOf(0)
     private val windowUpdateRequests = Channel<Unit>(Channel.CONFLATED)
@@ -450,9 +455,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
         super.onViewDetached(view)
 
         if (!rootView.isAttachedToWindow) {
-            lifecycleScope.launch {
-                onDrawerAttachmentStateChanged(false)
-            }
+            TaskerIsShowingDrawer::class.java.requestQuery(this)
         }
     }
 
@@ -461,54 +464,64 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
         hideHandle()
     }
 
-    private suspend fun tryShowHandle() {
-        logUtils.debugLog("Trying to show handle on display ${this@DrawerDelegate.display?.uniqueIdCompat}", null)
-        if (prefManager.drawerEnabled && prefManager.showDrawerHandle &&
-            lsDisplayManager.displayPowerStates.value.displayStates[this@DrawerDelegate.display?.uniqueIdCompat] == true
-        ) {
-            if (prefManager.showDrawerHandleOnlyWhenLocked && !globalState.wasOnKeyguard.value) {
-                return
-            }
+    private suspend fun tryShowHandle(): Unit = withContext(Dispatchers.Main) {
+        handleTransitionMutex.withLock {
+            if (!prefManager.drawerEnabled || !prefManager.showDrawerHandle ||
+                rootView.isAttachedToWindow ||
+                lsDisplayManager.displayPowerStates.value.displayStates[display?.uniqueIdCompat] != true ||
+                (prefManager.showDrawerHandleOnlyWhenLocked && !globalState.wasOnKeyguard.value)
+            ) return@withLock
 
-            if (!handle.isAttachedToWindow && viewModel.handleAnimationState.value != AnimationState.ADDING) {
-                wm?.safeAddView(handle, handleParams)
-                handle.awaitNextDraw()
-                handle.alpha = 0f
-                handle.fadeIn(DrawerOrFrame.DRAWER)
-                viewModel.handleAnimationState.value = AnimationState.IDLE
-            }
-        }
-    }
-
-    private suspend fun hideHandle() {
-        withContext(Dispatchers.Main + NonCancellable) {
-            logUtils.debugLog("Trying to hide handle", null)
-
-            if (handle.isAttachedToWindow && viewModel.handleAnimationState.value != AnimationState.REMOVING) {
-                updateIgnoreHandleTouches(true)
-
-                handle.fadeOut(DrawerOrFrame.DRAWER)
-
-                updateIgnoreHandleTouches(false)
-                viewModel.handleAnimationState.value = AnimationState.IDLE
-                wm?.safeRemoveView(handle)
+            if (!handle.isAttachedToWindow) {
+                viewModel.handleAnimationState.value = AnimationState.ADDING
+                try {
+                    handle.alpha = 0f
+                    if (wm?.safeAddView(handle, handleParams) == true) {
+                        handle.awaitNextDraw()
+                        handle.fadeIn(DrawerOrFrame.DRAWER)
+                    }
+                } finally {
+                    viewModel.handleAnimationState.value = AnimationState.IDLE
+                }
             }
         }
     }
 
-    private suspend fun showDrawer(hideHandle: Boolean = true) {
-        logUtils.debugLog("Trying to show drawer", null)
-        if (!rootView.isAttachedToWindow && viewModel.drawerAnimationState.value != AnimationState.ADDING) {
-            viewModel.drawerAnimationState.value = AnimationState.ADDING
-            rootView.alpha = 0f
-            wm?.safeAddView(rootView, params)
-            if (hideHandle) {
-                hideHandle()
+    private suspend fun hideHandle(): Unit = withContext(Dispatchers.Main + NonCancellable) {
+        handleTransitionMutex.withLock {
+            if (handle.isAttachedToWindow) {
+                viewModel.handleAnimationState.value = AnimationState.REMOVING
+                try {
+                    updateIgnoreHandleTouches(true)
+                    handle.fadeOut(DrawerOrFrame.DRAWER)
+                    wm?.safeRemoveViewImmediate(handle)
+                } finally {
+                    updateIgnoreHandleTouches(false)
+                    viewModel.handleAnimationState.value = AnimationState.IDLE
+                }
             }
-            // This must run after the view is attached. fadeIn() suspends until the
-            // animation completes, so calling it before safeAddView() would delay adding
-            // the drawer until after the fade had already finished.
-            onDrawerAttachmentStateChanged(true)
+        }
+    }
+
+    private suspend fun showDrawer(hideHandle: Boolean = true): Unit = withContext(Dispatchers.Main) {
+        drawerTransitionMutex.withLock {
+            if (lsDisplayManager.displayPowerStates.value.displayStates[display?.uniqueIdCompat] != true) {
+                return@withLock
+            }
+            // A button/tap may reopen an already attached, partially dragged drawer.
+            updateWindow()
+            if (!rootView.isAttachedToWindow) {
+                viewModel.drawerAnimationState.value = AnimationState.ADDING
+                try {
+                    rootView.alpha = 0f
+                    if (wm?.safeAddView(rootView, params) != true) return@withLock
+                    rootView.awaitNextDraw()
+                    if (hideHandle) hideHandle()
+                    onDrawerAttachmentStateChanged(true)
+                } finally {
+                    viewModel.drawerAnimationState.value = AnimationState.IDLE
+                }
+            }
         }
     }
 
@@ -542,25 +555,25 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
         }
     }
 
-    private suspend fun hideDrawer(callListener: Boolean = true) {
-        withContext(Dispatchers.Main + NonCancellable) {
-            logUtils.debugLog("Trying to hide drawer, $callListener", null)
-            if (rootView.isAttachedToWindow && viewModel.drawerAnimationState.value != AnimationState.REMOVING) {
+    private suspend fun hideDrawer(callListener: Boolean = true): Unit = withContext(Dispatchers.Main + NonCancellable) {
+        drawerTransitionMutex.withLock {
+            viewModel.drawerScrollInAnimator.getAndUpdate { null }?.cancel()
+            if (rootView.isAttachedToWindow) {
                 viewModel.drawerAnimationState.value = AnimationState.REMOVING
                 globalState.handlingClick.remove(ID)
                 viewModel.currentEditingInterfaceId.value = null
-
-                updateIgnoreDrawerTouches(true)
-
-                rootView.fadeOut(DrawerOrFrame.DRAWER)
-                wm?.safeRemoveView(rootView)
-
-                updateIgnoreDrawerTouches(false)
-                viewModel.drawerAnimationState.value = AnimationState.IDLE
-                if (callListener) {
-                    tryShowHandle()
+                forceWakelock(on = false, updateOverlay = false)
+                try {
+                    updateIgnoreDrawerTouches(true)
+                    rootView.fadeOut(DrawerOrFrame.DRAWER)
+                    wm?.safeRemoveViewImmediate(rootView)
+                } finally {
+                    updateIgnoreDrawerTouches(false)
+                    viewModel.drawerAnimationState.value = AnimationState.IDLE
                 }
             }
+            // Recover the handle even if a concurrent screen-off/close already removed the drawer.
+            if (callListener) tryShowHandle()
         }
     }
 

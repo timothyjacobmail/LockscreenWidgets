@@ -204,7 +204,7 @@ class TaskerIsShowingFrame : BaseTaskerFrameActivity() {
             val ids = input.regular.ids.orAllIds(context)
             val allInstances = FrameInstances.allInstances(context).filter { ids.contains(it.key) }
 
-            return if (allInstances.any { it.value?.isAttached == true }) {
+            return if (allInstances.any { it.value?.isShowing == true }) {
                 TaskerPluginResultConditionSatisfied(context)
             } else {
                 TaskerPluginResultConditionUnsatisfied()

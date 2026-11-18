@@ -505,7 +505,7 @@ object AccessibilityUtils {
                 "isOnKeyguard" to isOnKeyguard,
                 "widgetFrameEnabled" to prefManager.widgetFrameEnabled,
                 "drawerEnabled" to prefManager.drawerEnabled,
-                "drawerIsAttached" to drawerDelegate.isAttached,
+                "drawerIsAttached" to drawerDelegate.isShowing,
                 "anyFrameAttached" to frameDelegates.any { it.value.isAttached },
                 "drawerHideWhenNotificationPanelOpen" to prefManager.drawerHideWhenNotificationPanelOpen,
             ),
@@ -519,7 +519,7 @@ object AccessibilityUtils {
                         PrefManager.KEY_SHOW_IN_NOTIFICATION_CENTER,
                     )) &&
                             prefManager.widgetFrameEnabled /* This is only needed when the frame is enabled */) ||
-                            (prefManager.drawerEnabled && drawerDelegate.isAttached && prefManager.drawerHideWhenNotificationPanelOpen)))
+                            (prefManager.drawerEnabled && drawerDelegate.isShowing && prefManager.drawerHideWhenNotificationPanelOpen)))
         ) {
             logUtils.debugLog(
                 "Running window operation.",
@@ -609,7 +609,7 @@ object AccessibilityUtils {
                     !drawerDelegate.viewModel.scrollingOpen.value &&
                     notificationsWereOpen != notificationsAreOpen &&
                     notificationsAreOpen &&
-                    drawerDelegate.isAttached &&
+                    drawerDelegate.isShowing &&
                     prefManager.drawerHideWhenNotificationPanelOpen
                 ) {
                     eventManager.sendEvent(Event.CloseDrawer)

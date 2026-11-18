@@ -14,6 +14,44 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FrameVisibilityControllerTest {
+    @Test
+    fun retainedFrameReappearsWithoutDelayOrReattachmentAcrossWakeCycles() = runTest {
+        var wanted = true
+        var attached = false
+        var visible = false
+        var attachments = 0
+        val controller = FrameVisibilityController(
+            scope = backgroundScope,
+            showDelayMillis = 50,
+            shouldShow = { wanted },
+            isAttached = { attached },
+            show = {
+                if (!attached) attachments++
+                attached = true
+                visible = true
+            },
+            hide = { visible = false },
+            onSettled = {},
+        )
+        controller.requestUpdate()
+        advanceTimeBy(50)
+        runCurrent()
+        assertTrue(visible)
+        repeat(3) {
+            wanted = false
+            controller.requestUpdate()
+            runCurrent()
+            assertFalse(visible)
+            assertTrue(attached)
+            wanted = true
+            controller.requestUpdate()
+            // No virtual time advance: a warm wake must not wait another 50 ms.
+            runCurrent()
+            assertTrue(visible)
+        }
+        assertEquals(1, attachments)
+    }
+
     private class Frame(scope: TestScope, animationMillis: Long = 0) {
         var wanted = true
         var attached = false

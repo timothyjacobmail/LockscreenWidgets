@@ -84,6 +84,12 @@ abstract class BaseDelegate<State : Any>(
     val isAttached: Boolean
         get() = allViews.any { it.isAttachedToWindow }
 
+    open val isShowing: Boolean
+        get() = rootView.isAttachedToWindow && rootView.visibility == View.VISIBLE && params.alpha > 0f
+
+    protected open val shouldStartLifecycle: Boolean
+        get() = isAttached
+
     private val viewAttachmentStateListener = object : View.OnAttachStateChangeListener {
         override fun onViewAttachedToWindow(v: View) {
             onViewAttached(v)
@@ -110,7 +116,7 @@ abstract class BaseDelegate<State : Any>(
         if (!ownsLifecycle) return@Runnable
         if (lifecycleRegistry.currentState == Lifecycle.State.DESTROYED) return@Runnable
 
-        val shouldBeStarted = allViews.any { it.isAttachedToWindow }
+        val shouldBeStarted = shouldStartLifecycle
         val state = lifecycleRegistry.currentState
 
         if (shouldBeStarted && state < Lifecycle.State.STARTED) {
@@ -348,7 +354,7 @@ abstract class BaseDelegate<State : Any>(
         }
     }
 
-    private fun scheduleLifecycleReconcile() {
+    protected fun scheduleLifecycleReconcile() {
         mainHandler.removeCallbacks(reconcileLifecycle)
         mainHandler.post(reconcileLifecycle)
     }

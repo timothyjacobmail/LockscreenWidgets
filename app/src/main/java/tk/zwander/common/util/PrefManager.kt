@@ -464,13 +464,13 @@ class PrefManager private constructor(private val context: Context) {
 
     //Whether the widget frame should animate its hide/show sequences.
     var animateShowHide: Boolean
-        get() = getBoolean(KEY_ANIMATE_SHOW_HIDE, true)
+        get() = getBoolean(KEY_ANIMATE_SHOW_HIDE, false)
         set(value) {
             putBoolean(KEY_ANIMATE_SHOW_HIDE, value)
         }
 
     var animateDrawerShowHide: Boolean
-        get() = getBoolean(KEY_ANIMATE_DRAWER_SHOW_HIDE, true)
+        get() = getBoolean(KEY_ANIMATE_DRAWER_SHOW_HIDE, false)
         set(value) {
             putBoolean(KEY_ANIMATE_DRAWER_SHOW_HIDE, value)
         }
@@ -683,7 +683,7 @@ class PrefManager private constructor(private val context: Context) {
         }
 
     var drawerHandleTapToOpen: Boolean
-        get() = getBoolean(KEY_DRAWER_HANDLE_TAP_TO_OPEN, false)
+        get() = getBoolean(KEY_DRAWER_HANDLE_TAP_TO_OPEN, true)
         set(value) {
             putBoolean(KEY_DRAWER_HANDLE_TAP_TO_OPEN, value)
         }

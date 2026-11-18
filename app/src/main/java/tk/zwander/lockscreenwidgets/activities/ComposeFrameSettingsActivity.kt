@@ -614,7 +614,7 @@ class ComposeFrameSettingsActivity : BaseActivity() {
                         summary = { stringResource(R.string.settings_screen_animate_show_hide_desc) },
                         key = { PrefManager.KEY_ANIMATE_SHOW_HIDE },
                         icon = { painterResource(R.drawable.ic_baseline_animation_24) },
-                        defaultValue = { true },
+                        defaultValue = { false },
                         badge = globalBadge,
                     )
 

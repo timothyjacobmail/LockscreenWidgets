@@ -83,7 +83,7 @@ class TaskerIsShowingDrawer : ComponentActivity(), TaskerPluginConfigNoInput {
             input: TaskerInput<Unit>,
             update: Unit?,
         ): TaskerPluginResultCondition<Unit> {
-            return if (DrawerDelegate.peekInstance(context)?.isAttached == true) {
+            return if (DrawerDelegate.peekInstance(context)?.isShowing == true) {
                 TaskerPluginResultConditionSatisfied(context)
             } else {
                 TaskerPluginResultConditionUnsatisfied()

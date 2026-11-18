@@ -201,6 +201,8 @@ open class WidgetFrameDelegate protected constructor(
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                         WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                         WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+            alpha = 0f
+            flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             format = PixelFormat.RGBA_8888
         }
     }
@@ -229,7 +231,7 @@ open class WidgetFrameDelegate protected constructor(
                 },
                 frameIntercept = {
                     lifecycleScope.launch {
-                        forceWakelock(it)
+                        forceWakelock(it && isShowing)
                     }
                 },
                 frameMoved = { velX, velY ->
@@ -363,9 +365,9 @@ open class WidgetFrameDelegate protected constructor(
         }
         handler(PrefManager.KEY_PRIMARY_FRAME_DISPLAY) {
             val display = prefManager.primaryFrameDisplay
-            targetDisplayId.value = display
-
             removeWindow()
+            animationMutex.withLock { detachWindow() }
+            targetDisplayId.value = display
             updateWindowState()
         }
         handler(PrefManager.KEY_FRAME_IGNORE_TOUCHES) {
@@ -480,6 +482,7 @@ open class WidgetFrameDelegate protected constructor(
     }
 
     override fun onDestroy() {
+        detachWindow()
         super.onDestroy()
 
         if (id == ID) {
@@ -527,120 +530,76 @@ open class WidgetFrameDelegate protected constructor(
         updateWindowState(updateAccessibility)
     }
 
-    private suspend fun addWindow() {
-        logUtils.debugLog(
-            "Adding overlay",
-            extras = mapOf("frameId" to id, "rootAttachedBefore" to rootView.isAttachedToWindow),
-        )
+    // Keep the window and Compose/widget hierarchy attached between wakes. Window alpha
+    // hides the rendered surface without disposing the composition or intercepting input.
+    private var attachedWindowManager: WindowManager? = null
+    private var attachedDisplayId: String? = null
 
-        withContext(Dispatchers.Main) {
-            if (!rootView.isAttachedToWindow) {
+    override val shouldStartLifecycle: Boolean
+        get() = isShowing
+
+    private suspend fun addWindow(): Unit = withContext(Dispatchers.Main) {
+        animationMutex.withLock {
+            if (isShowing || !canShow()) return@withLock
+            viewModel.animationState.value = AnimationState.STATE_ADDING
+            try {
                 updateWindow()
-            }
-
-            logUtils.debugLog(
-                "Trying to add overlay ${viewModel.animationState.value}",
-                extras = mapOf(
-                    "frameId" to id,
-                    "rootAttachedBefore" to rootView.isAttachedToWindow,
-                    "animState" to viewModel.animationState.value.toString(),
-                ),
-            )
-
-            if (!rootView.isAttachedToWindow && viewModel.animationState.value != AnimationState.STATE_ADDING) {
-                logUtils.debugLog(
-                    "Actually adding overlay",
-                    extras = mapOf(
-                        "frameId" to id,
-                        "displayId" to this@WidgetFrameDelegate.display?.uniqueIdCompat,
-                        "paramsWidth" to params.width,
-                        "paramsHeight" to params.height,
-                    ),
-                )
-
-                viewModel.animationState.value = AnimationState.STATE_ADDING
-
-                val addSuccess = animationMutex.withLock {
-                    wm?.safeAddView(rootView, params) == true
-                }
-
-                if (addSuccess) {
-                    logUtils.debugLog("Overlay added successfully", extras = mapOf("frameId" to id))
+                if (!rootView.isAttachedToWindow) {
+                    params.alpha = 0f
+                    rootView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                    updateIgnoreAllTouches(true)
+                    val manager = wm
+                    if (manager?.safeAddView(rootView, params) != true) return@withLock
+                    attachedWindowManager = manager
+                    attachedDisplayId = display?.uniqueIdCompat
                     rootView.awaitNextDraw()
-                    rootView.fadeAndScaleIn(DrawerOrFrame.FRAME)
-                } else {
-                    logUtils.debugLog(
-                        "Adding overlay failed",
-                        extras = mapOf(
-                            "frameId" to id,
-                            "animState" to viewModel.animationState.value.toString(),
-                        ),
-                    )
                 }
-
+                // Cold attachment can suspend; an unlock/off event may have arrived meanwhile.
+                if (!canShow()) return@withLock
+                rootView.alpha = if (prefManager.animateShowHide) 0f else 1f
+                rootView.scaleX = 1f
+                rootView.scaleY = 1f
+                rootView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                params.alpha = 1f
+                updateIgnoreAllTouches()
+                scheduleLifecycleReconcile()
+                updateWallpaperLayerIfNeeded()
+                if (prefManager.animateShowHide) rootView.fadeAndScaleIn(DrawerOrFrame.FRAME)
+            } finally {
                 viewModel.animationState.value = AnimationState.STATE_IDLE
             }
         }
     }
 
-    private suspend fun removeWindow() {
-        if (isAttached) {
-            logUtils.debugLog(
-                "Removing overlay",
-                extras = mapOf("frameId" to id, "rootAttachedBefore" to rootView.isAttachedToWindow),
-            )
-        }
-
-        if (rootView.isAttachedToWindow && viewModel.animationState.value != AnimationState.STATE_REMOVING) {
-            logUtils.debugLog(
-                "Trying to remove overlay ${viewModel.animationState.value}",
-                extras = mapOf(
-                    "frameId" to id,
-                    "rootAttachedBefore" to rootView.isAttachedToWindow,
-                    "animState" to viewModel.animationState.value.toString(),
-                ),
-            )
-
-            if (!rootView.isAttachedToWindow) {
-                logUtils.debugLog("Root view already detached during removeWindow", extras = mapOf("frameId" to id))
-                return
-            }
-
-            viewModel.animationState.value = AnimationState.STATE_REMOVING
-
-            updateIgnoreAllTouches(true)
-
-            withContext(Dispatchers.Main + NonCancellable) {
-                logUtils.debugLog(
-                    "Actually removing overlay",
-                    extras = mapOf(
-                        "frameId" to id,
-                        "displayId" to this@WidgetFrameDelegate.display?.uniqueIdCompat,
-                    ),
-                )
-
+    private suspend fun removeWindow(): Unit = withContext(Dispatchers.Main + NonCancellable) {
+        animationMutex.withLock {
+            if (params.alpha == 0f && prefManager.widgetFrameEnabled &&
+                params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0
+            ) return@withLock
+            if (isShowing) {
+                viewModel.animationState.value = AnimationState.STATE_REMOVING
+                updateIgnoreAllTouches(true)
                 viewModel.currentEditingInterfaceId.value = null
-
+                viewModel.isEditing.value = false
+                viewModel.isRemoving.value = false
                 globalState.handlingClick.remove(id)
                 forceWakelock(on = false, updateOverlay = false)
-
-                animationMutex.withLock {
-                    rootView.fadeAndScaleOut(DrawerOrFrame.FRAME)
-                    wm?.safeRemoveViewImmediate(rootView)
-                }
-
-                logUtils.debugLog("Overlay removed successfully", extras = mapOf("frameId" to id))
+                if (prefManager.animateShowHide) rootView.fadeAndScaleOut(DrawerOrFrame.FRAME)
             }
-
-            updateIgnoreAllTouches()
-
+            params.alpha = 0f
+            rootView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            updateIgnoreAllTouches(true)
+            scheduleLifecycleReconcile()
+            // Disabling a frame releases its window; ordinary hiding keeps it ready.
+            if (!prefManager.widgetFrameEnabled) detachWindow()
             viewModel.animationState.value = AnimationState.STATE_IDLE
-        } else if (!rootView.isAttachedToWindow) {
-            logUtils.debugLog("Attempting emergency removeViewImmediate", extras = mapOf("frameId" to id))
-            animationMutex.withLock {
-                wm?.safeRemoveViewImmediate(rootView, false)
-            }
         }
+    }
+
+    private fun detachWindow() {
+        attachedWindowManager?.safeRemoveViewImmediate(rootView)
+        attachedWindowManager = null
+        attachedDisplayId = null
     }
 
     private fun onFrameAttachmentStateChanged(attached: Boolean) {
@@ -754,7 +713,8 @@ open class WidgetFrameDelegate protected constructor(
             return prefManager.widgetFrameEnabled && framePrefs.forceShow
         }
 
-        return (forced() || forSecondaryDisplay() || forPreview() || forNotificationCenter() || forLockscreen()).also {
+        return (lsDisplayManager.displayPowerStates.value.displayStates[display?.uniqueIdCompat] == true &&
+                (forced() || forSecondaryDisplay() || forPreview() || forNotificationCenter() || forLockscreen())).also {
             logUtils.debugLog(
                 "canShow $id: $it\n" +
                         "forced: ${forced()}, forSecondaryDisplay: ${forSecondaryDisplay()}, forPreview: ${forPreview()}, forNotificationCenter: ${forNotificationCenter()}, forLockscreen: ${forLockscreen()}, forCommon: ${forCommon()}\n" +
@@ -932,6 +892,10 @@ open class WidgetFrameDelegate protected constructor(
     }
 
     override suspend fun onDisplayChanged() {
+        if (rootView.isAttachedToWindow && attachedDisplayId != display?.uniqueIdCompat) {
+            animationMutex.withLock { detachWindow() }
+            visibilityController.requestUpdate()
+        }
         this@WidgetFrameDelegate.display?.let { display ->
             frameSizeAndPosition.getSizeForType(saveMode, display).let { size ->
                 params.width = clampFrameWidth(display.dpToPx(size.x), display)
@@ -964,7 +928,7 @@ open class WidgetFrameDelegate protected constructor(
     }
 
     private suspend fun updateIgnoreAllTouches(override: Boolean = false) {
-        params.flags = if ((state.value.ignoreAllTouches && !state.value.isPreview) || override) {
+        params.flags = if (params.alpha == 0f || (state.value.ignoreAllTouches && !state.value.isPreview) || override) {
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         } else {
             params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()

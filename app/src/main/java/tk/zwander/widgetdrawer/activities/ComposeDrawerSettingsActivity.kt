@@ -271,7 +271,7 @@ class ComposeDrawerSettingsActivity : BaseActivity() {
                         summary = { stringResource(R.string.settings_screen_animate_show_hide_desc) },
                         key = { PrefManager.KEY_ANIMATE_DRAWER_SHOW_HIDE },
                         icon = { painterResource(R.drawable.ic_baseline_animation_24) },
-                        defaultValue = { true },
+                        defaultValue = { false },
                     )
 
                     seekBarPreference(
@@ -334,7 +334,7 @@ class ComposeDrawerSettingsActivity : BaseActivity() {
                         title = { stringResource(R.string.drawer_handle_tap_to_open) },
                         summary = { stringResource(R.string.drawer_handle_tap_to_open_desc) },
                         key = { PrefManager.KEY_DRAWER_HANDLE_TAP_TO_OPEN },
-                        defaultValue = { false },
+                        defaultValue = { true },
                         icon = { painterResource(R.drawable.tap) },
                         enabled = booleanPreferenceDependency(
                             key = PrefManager.KEY_SHOW_DRAWER_HANDLE,
