@@ -35,6 +35,7 @@ data class WidgetData(
     val size: WidgetSizeData?,
     val packageName: String?,
     val profile: UserHandle?,
+    val drawerPlacement: DrawerPlacement? = null,
 ) : Parcelable {
     companion object {
         fun shortcut(
@@ -129,14 +130,14 @@ data class WidgetData(
                         (profile == null && other.profile == UserHandleCompat.SYSTEM) ||
                         (profile == UserHandleCompat.SYSTEM && other.profile == null)
                 )
-                && size == other.size
+                && size == other.size && drawerPlacement == other.drawerPlacement
     }
 
     override fun hashCode(): Int {
         return if (safeType != WidgetType.WIDGET) {
-            Objects.hash(id, safeType, size)
+            Objects.hash(id, safeType, size, drawerPlacement)
         } else {
-            Objects.hash(id, safeType, widgetProviderComponent, (profile ?: UserHandleCompat.SYSTEM), size)
+            Objects.hash(id, safeType, widgetProviderComponent, (profile ?: UserHandleCompat.SYSTEM), size, drawerPlacement)
         }
     }
 

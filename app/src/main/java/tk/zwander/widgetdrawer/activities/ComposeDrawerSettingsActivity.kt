@@ -195,6 +195,13 @@ class ComposeDrawerSettingsActivity : BaseActivity() {
                     key = "settings_layout_category_drawer",
                 ) {
                     switchPreference(
+                        title = { stringResource(R.string.drawer_free_placement) },
+                        summary = { stringResource(R.string.drawer_free_placement_desc) },
+                        key = { PrefManager.KEY_DRAWER_FREE_PLACEMENT },
+                        defaultValue = { false },
+                        icon = { painterResource(R.drawable.expand_horiz) },
+                    )
+                    switchPreference(
                         title = { stringResource(R.string.settings_screen_lock_widget_drawer) },
                         summary = { stringResource(R.string.settings_screen_lock_widget_drawer_desc) },
                         key = { PrefManager.KEY_LOCK_WIDGET_DRAWER },

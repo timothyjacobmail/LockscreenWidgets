@@ -113,7 +113,15 @@ fun DrawerDelegate.DrawerViewModel.DrawerLayout(
                     .zIndex(0f),
             )
 
-            DrawerToolbar(
+            val drawerLocked by rememberBooleanPreferenceState(PrefManager.KEY_LOCK_WIDGET_DRAWER)
+            var freePlacement by rememberBooleanPreferenceState(PrefManager.KEY_DRAWER_FREE_PLACEMENT)
+            val arranging by arrangingWidgets.collectAsMutableState()
+            if (!arranging || !freePlacement || drawerLocked) DrawerToolbar(
+                arrange = if (drawerLocked) null else ({
+                    freePlacement = true
+                    currentEditingInterfaceId.value = null
+                    arrangingWidgets.value = !arranging
+                }),
                 addWidget = {
                     context.eventManager.sendEvent(Event.CloseDrawer)
                     AddDrawerWidgetActivity.launch(context, true)

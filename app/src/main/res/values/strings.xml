@@ -502,4 +502,10 @@
     <string name="drawer_handle_edge_right">Right edge</string>
     <string name="drawer_handle_vertical_position">Vertical Position</string>
     <string name="drawer_handle_vertical_position_desc" formatted="false">0% is the top; 100% is the bottom. Changes apply immediately. You can also press and hold the handle, then drag it.</string>
+    <string name="drawer_free_placement">Free placement</string>
+    <string name="drawer_free_placement_desc">Use Arrange in the drawer toolbar to move and resize individual widgets. Turn this off to return to the grid.</string>
+    <string name="drawer_arrange">Arrange</string>
+    <string name="drawer_done">Done</string>
+    <string name="drawer_cycle_widget">Next widget</string>
+    <string name="drawer_resize_widget">Resize widget</string>
 </resources>

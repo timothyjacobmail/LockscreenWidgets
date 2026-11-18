@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -74,6 +76,7 @@ fun DrawerToolbarPreview() {
 fun DrawerToolbar(
     addWidget: () -> Unit,
     closeDrawer: () -> Unit,
+    arrange: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -172,6 +175,12 @@ fun DrawerToolbar(
                         contentDescription = stringResource(R.string.add_widget),
                         modifier = Modifier.size(48.dp),
                     )
+                }
+
+                if (arrange != null) {
+                    TextButton(onClick = { arrange(); scope.launch { anchorState.animateTo(false, SpringSpec()) } }) {
+                        Text(stringResource(R.string.drawer_arrange))
+                    }
                 }
 
                 IconButton(

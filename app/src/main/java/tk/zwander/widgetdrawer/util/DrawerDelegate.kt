@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ import tk.zwander.lockscreenwidgets.R
 import tk.zwander.widgetdrawer.activities.TaskerIsShowingDrawer
 import tk.zwander.widgetdrawer.activities.add.AddDrawerWidgetActivity
 import tk.zwander.widgetdrawer.activities.add.ReconfigureDrawerWidgetActivity
+import tk.zwander.widgetdrawer.compose.FreeDrawer
 import tk.zwander.widgetdrawer.compose.DrawerLayout
 
 class DrawerDelegate private constructor(context: Context, displayId: String) :
@@ -561,6 +563,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
             viewModel.drawerScrollInAnimator.getAndUpdate { null }?.cancel()
             if (rootView.isAttachedToWindow) {
                 viewModel.drawerAnimationState.value = AnimationState.REMOVING
+                viewModel.arrangingWidgets.value = false
                 globalState.handlingClick.remove(ID)
                 viewModel.currentEditingInterfaceId.value = null
                 forceWakelock(on = false, updateOverlay = false)
@@ -600,6 +603,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
 
     class DrawerViewModel(delegate: DrawerDelegate) :
         BaseViewModel<State, DrawerDelegate>(delegate) {
+        val arrangingWidgets = MutableStateFlow(false)
         val scrollingOpen = MutableStateFlow(false)
         val handleAnimationState = MutableStateFlow(AnimationState.IDLE)
         val drawerAnimationState = MutableStateFlow(AnimationState.IDLE)
@@ -660,7 +664,25 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
                         .coerceAtLeast(20)
                 }
 
-                WidgetGrid(
+                val freePlacement by rememberBooleanPreferenceState(PrefManager.KEY_DRAWER_FREE_PLACEMENT)
+                if (freePlacement) {
+                    FreeDrawer(
+                        widgets = currentWidgetsState,
+                        update = { currentWidgetsState = it },
+                        columns = columnCount.coerceAtLeast(1), rows = rowCount,
+                        locked = drawerLocked,
+                        add = { AddDrawerWidgetActivity.launch(context, true) },
+                        reconfigure = { id, info ->
+                            delegate.lifecycleScope.launch { delegate.hideDrawer() }
+                            ReconfigureDrawerWidgetActivity.launch(context, id, info)
+                        },
+                        changeIcon = { id ->
+                            delegate.lifecycleScope.launch { delegate.hideDrawer() }
+                            SelectIconPackActivity.launchForOverride(context, id, true)
+                        },
+                        modifier = Modifier.fillMaxSize().padding(combinedPadding.asPaddingValues()),
+                    )
+                } else WidgetGrid(
                     currentWidgets = currentWidgetsState,
                     onWidgetsChanged = { widgets ->
                         currentWidgetsState = widgets

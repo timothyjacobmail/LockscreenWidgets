@@ -103,6 +103,7 @@ class PrefManager private constructor(private val context: Context) {
         const val KEY_DRAWER_HANDLE_SIDE = "drawer_handle_side"
         const val KEY_DRAWER_HANDLE_COLOR = "drawer_handle_color"
         const val KEY_SHOW_DRAWER_HANDLE_SHADOW = "show_drawer_handle_shadow"
+        const val KEY_DRAWER_FREE_PLACEMENT = "drawer_free_placement"
         const val KEY_DRAWER_ENABLED = "drawer_enabled"
         const val KEY_DRAWER_BACKGROUND_COLOR = "drawer_background_color"
         const val KEY_FRAME_WIDGET_CORNER_RADIUS = "frame_widget_corner_radius"

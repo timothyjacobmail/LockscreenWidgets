@@ -284,7 +284,7 @@ fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetGrid(
 }
 
 @Composable
-private fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.AddItem(
+internal fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.AddItem(
     launchAddActivity: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -361,7 +361,7 @@ private fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.AddItem(
 }
 
 @Composable
-private fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetItem(
+internal fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetItem(
     data: WidgetData,
     isDragging: Boolean,
     currentWidgets: List<WidgetData>,
@@ -541,54 +541,52 @@ private fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetContents(
         }
         val paddingValue = dimensionResource(R.dimen.app_widget_padding)
 
-        LaunchedEffect(width, height, data.id, data.safeSize) {
-            if (!isResizingItem) {
-                if (!BrokenAppsRegistry.isBroken(widgetInfo)) {
-                    try {
-                        widgetView = viewCacheRegistry.getOrCreateView(
-                            SafeContextWrapper(context),
-                            data.id,
-                            widgetInfo,
+        LaunchedEffect(data.id, widgetInfo) {
+            if (!BrokenAppsRegistry.isBroken(widgetInfo)) {
+                try {
+                    widgetView = viewCacheRegistry.getOrCreateView(
+                        SafeContextWrapper(context),
+                        data.id,
+                        widgetInfo,
+                    )
+                } catch (e: Throwable) {
+                    if (e !is CancellationException) {
+                        context.logUtils.normalLog(
+                            "Unable to bind widget view ${widgetInfo.provider}",
+                            e,
                         )
-                    } catch (e: Throwable) {
-                        if (e !is CancellationException) {
-                            context.logUtils.normalLog(
-                                "Unable to bind widget view ${widgetInfo.provider}",
-                                e,
-                            )
-                        }
-
-                        if (e is SecurityException) {
-                            Toast.makeText(
-                                context,
-                                resources.getString(
-                                    R.string.bind_widget_error,
-                                    widgetInfo.provider,
-                                ),
-                                Toast.LENGTH_LONG,
-                            ).show()
-                            onWidgetsChanged(
-                                currentWidgets.toMutableList().apply {
-                                    remove(data)
-                                    context.idManager.removeId(data.id)
-                                },
-                            )
-                        } else {
-                            widgetView = context.createWidgetErrorView()
-                        }
                     }
-                } else {
-                    context.logUtils.normalLog(
-                        "Broken app widget detected: ${widgetInfo.provider}. Removing from adapter list.",
-                        null,
-                    )
-                    onWidgetsChanged(
-                        currentWidgets.toMutableList().apply {
-                            remove(data)
-                            context.idManager.removeId(data.id)
-                        },
-                    )
+
+                    if (e is SecurityException) {
+                        Toast.makeText(
+                            context,
+                            resources.getString(
+                                R.string.bind_widget_error,
+                                widgetInfo.provider,
+                            ),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                        onWidgetsChanged(
+                            currentWidgets.toMutableList().apply {
+                                remove(data)
+                                context.idManager.removeId(data.id)
+                            },
+                        )
+                    } else {
+                        widgetView = context.createWidgetErrorView()
+                    }
                 }
+            } else {
+                context.logUtils.normalLog(
+                    "Broken app widget detected: ${widgetInfo.provider}. Removing from adapter list.",
+                    null,
+                )
+                onWidgetsChanged(
+                    currentWidgets.toMutableList().apply {
+                        remove(data)
+                        context.idManager.removeId(data.id)
+                    },
+                )
             }
         }
 
@@ -646,21 +644,12 @@ private fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetContents(
         AndroidView(
             factory = { FrameLayout(it) },
             modifier = Modifier.fillMaxSize(),
-            update = {
-                if (!isResizingItem) {
-                    it.removeAllViews()
-                    widgetView?.let { v ->
-                        it.postOnAnimationDelayed(
-                            {
-                                it.addView(
-                                    v.andRemoveFromParent(),
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                )
-                            },
-                            10,
-                        )
-                    }
+            update = { container ->
+                val child = widgetView
+                if (!isResizingItem && child != null && child.parent !== container) {
+                    container.removeAllViews()
+                    container.addView(child.andRemoveFromParent(), ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT)
                 }
             },
         )
