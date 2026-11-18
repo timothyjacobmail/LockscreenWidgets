@@ -82,55 +82,15 @@ fun WidgetFrameDelegate.WidgetFrameViewModel.FrameEditWrapperLayout(
                     .fillMaxSize()
                     .padding(8.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                PlacementMoveControls(
+                    centerVertically = centerFrameVertically,
+                    centerHorizontally = centerFrameHorizontally,
+                    moveModifier = Modifier.draggable2D(
+                        state = rememberDraggable2DState { frameMoved(it.x, it.y) },
+                        onDragStopped = { frameMoveFinished() },
+                    ),
                     modifier = Modifier.align(Alignment.Center),
-                ) {
-                    IconButton(
-                        onClick = {
-                            centerFrameVertically()
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_baseline_vertical_align_center_24),
-                            contentDescription = stringResource(R.string.center_vertically),
-                            modifier = Modifier.size(32.dp),
-                            tint = Color.White,
-                        )
-                    }
-
-                    Icon(
-                        painter = painterResource(R.drawable.ic_baseline_move_24),
-                        contentDescription = stringResource(R.string.move),
-                        modifier = Modifier
-                            .draggable2D(
-                                state = rememberDraggable2DState {
-                                    frameMoved(it.x, it.y)
-                                },
-                                onDragStopped = {
-                                    frameMoveFinished()
-                                },
-                            )
-                            .size(32.dp),
-                        tint = Color.White,
-                    )
-
-                    IconButton(
-                        onClick = {
-                            centerFrameHorizontally()
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_baseline_vertical_align_center_24),
-                            contentDescription = stringResource(R.string.center_horizontally),
-                            modifier = Modifier
-                                .rotate(90f)
-                                .size(32.dp),
-                            tint = Color.White,
-                        )
-                    }
-                }
+                )
 
                 Row(
                     modifier = Modifier.align(Alignment.BottomEnd),
@@ -239,73 +199,13 @@ fun WidgetFrameDelegate.WidgetFrameViewModel.FrameEditWrapperLayout(
             Box(
                 modifier = Modifier.fillMaxSize(),
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.handle_left),
-                    contentDescription = stringResource(R.string.expand_left),
-                    modifier = Modifier
-                        .align(AbsoluteAlignment.CenterLeft)
-                        .draggable(
-                            state = rememberDraggableState {
-                                frameResized(Side.LEFT, it.toInt(), false)
-                            },
-                            orientation = Orientation.Horizontal,
-                            onDragStopped = {
-                                frameResized(Side.LEFT, 0, true)
-                            },
-                        ),
-                    tint = Color.White,
-                )
-
-                Icon(
-                    painter = painterResource(R.drawable.handle_top),
-                    contentDescription = stringResource(R.string.expand_up),
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .draggable(
-                            state = rememberDraggableState {
-                                frameResized(Side.TOP, it.toInt(), false)
-                            },
-                            orientation = Orientation.Vertical,
-                            onDragStopped = {
-                                frameResized(Side.TOP, 0, true)
-                            },
-                        ),
-                    tint = Color.White,
-                )
-
-                Icon(
-                    painter = painterResource(R.drawable.handle_bottom),
-                    contentDescription = stringResource(R.string.expand_down),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .draggable(
-                            state = rememberDraggableState {
-                                frameResized(Side.BOTTOM, it.toInt(), false)
-                            },
-                            orientation = Orientation.Vertical,
-                            onDragStopped = {
-                                frameResized(Side.BOTTOM, 0, true)
-                            },
-                        ),
-                    tint = Color.White,
-                )
-
-                Icon(
-                    painter = painterResource(R.drawable.handle_right),
-                    contentDescription = stringResource(R.string.expand_right),
-                    modifier = Modifier
-                        .align(AbsoluteAlignment.CenterRight)
-                        .draggable(
-                            state = rememberDraggableState {
-                                frameResized(Side.RIGHT, it.toInt(), false)
-                            },
-                            orientation = Orientation.Horizontal,
-                            onDragStopped = {
-                                frameResized(Side.RIGHT, 0, true)
-                            },
-                        ),
-                    tint = Color.White,
-                )
+                PlacementEdges { side ->
+                    Modifier.draggable(
+                        state = rememberDraggableState { frameResized(side, it.toInt(), false) },
+                        orientation = if (side == Side.LEFT || side == Side.RIGHT) Orientation.Horizontal else Orientation.Vertical,
+                        onDragStopped = { frameResized(side, 0, true) },
+                    )
+                }
             }
         }
     }

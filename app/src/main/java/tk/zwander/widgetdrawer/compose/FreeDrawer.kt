@@ -21,6 +21,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import tk.zwander.common.compose.components.PlacementEdges
+import tk.zwander.common.compose.components.PlacementMoveControls
+import tk.zwander.common.compose.components.Side
 import tk.zwander.common.compose.AddItem
 import tk.zwander.common.compose.WidgetItem
 import tk.zwander.common.data.DrawerPlacement
@@ -71,9 +74,9 @@ internal fun DrawerDelegate.DrawerViewModel.FreeDrawer(
         if (pages.size > 1) {
             Surface(Modifier.align(Alignment.TopCenter)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { pageIndex = index - 1 }, enabled = index > 0) { Text("‹") }
+                    TextButton(onClick = { pageIndex = index - 1 }, enabled = index > 0) { Text("â€¹") }
                     Text("${index + 1}/${pages.size}")
-                    TextButton(onClick = { pageIndex = index + 1 }, enabled = index < pages.lastIndex) { Text("›") }
+                    TextButton(onClick = { pageIndex = index + 1 }, enabled = index < pages.lastIndex) { Text("â€º") }
                 }
             }
         }
@@ -104,16 +107,39 @@ internal fun DrawerDelegate.DrawerViewModel.FreeDrawer(
                 val saved = item.drawerPlacement!!
                 var draft by remember(saved) { mutableStateOf(saved) }
                 fun commit() { save(latest.map { if (it.gridId == item.gridId) it.copy(drawerPlacement = draft) else it }) }
-                fun gesture(resize: Boolean) = Modifier.pointerInput(saved, wide, tall, resize) {
+                fun gesture(resize: Boolean, side: Side? = null) = Modifier.pointerInput(saved, wide, tall, resize, side) {
                     detectDragGestures(onDragStart = { selected = item.gridId; if (resize) isResizingItem.value = true },
                         onDragCancel = { draft = saved; isResizingItem.value = false },
                         onDragEnd = { commit(); isResizingItem.value = false }) { change, delta ->
                         change.consume()
-                        draft = if (resize) draft.resized(delta.x / wide, delta.y / tall, minPx / wide, minPx / tall)
-                            else draft.moved(delta.x / wide, delta.y / tall)
+                        val dx = delta.x / wide
+                        val dy = delta.y / tall
+                        draft = when (side) {
+                            Side.LEFT -> draft.resizeLeft(dx, minPx / wide)
+                            Side.TOP -> draft.resizeTop(dy, minPx / tall)
+                            Side.RIGHT -> draft.resized(dx, 0f, minPx / wide, 0f)
+                            Side.BOTTOM -> draft.resized(0f, dy, 0f, minPx / tall)
+                            null -> if (resize) draft.resized(dx, dy, minPx / wide, minPx / tall) else draft.moved(dx, dy)
+                        }
                     }
                 }
                 val highlighted = arranging && selected == item.gridId
+                // A compact widget has too little space for the three middle controls.
+                // Float them beside its outline, keeping the strip inside the drawer.
+                val compact = maxWidth * draft.w < 200.dp || maxHeight * draft.h < 96.dp
+                if (highlighted && compact) {
+                    val stripHeight = with(density) { 48.dp.toPx() }
+                    val stripWidth = with(density) { 144.dp.toPx() }
+                    val below = (draft.y + draft.h) * tall
+                    PlacementMoveControls(
+                        centerVertically = { draft = draft.copy(y = (1f - draft.h) / 2); commit() },
+                        centerHorizontally = { draft = draft.copy(x = (1f - draft.w) / 2); commit() },
+                        moveModifier = gesture(false), modifier = Modifier.zIndex(2f).absoluteOffset {
+                            IntOffset((draft.x * wide).coerceIn(0f, (wide - stripWidth).coerceAtLeast(0f)).roundToInt(),
+                                (if (below + stripHeight <= tall) below else (draft.y * tall - stripHeight).coerceAtLeast(0f)).roundToInt())
+                        }.background(Color.DarkGray),
+                    )
+                }
                 Box(Modifier.zIndex(if (highlighted || editingId == item.gridId) 1f else 0f)
                     .absoluteOffset { IntOffset((draft.x * wide).roundToInt(), (draft.y * tall).roundToInt()) }
                     .size(maxWidth * draft.w, maxHeight * draft.h)) {
@@ -138,6 +164,16 @@ internal fun DrawerDelegate.DrawerViewModel.FreeDrawer(
                         Box(Modifier.align(AbsoluteAlignment.BottomRight).size(40.dp).background(Color.DarkGray)
                             .semantics { contentDescription = resizeLabel }.then(gesture(true)), contentAlignment = Alignment.Center) {
                             Text("â†˜", color = Color.White)
+                        }
+                        if (highlighted) {
+                            PlacementEdges { side -> gesture(true, side) }
+                            if (!compact) {
+                                PlacementMoveControls(
+                                    centerVertically = { draft = draft.copy(y = (1f - draft.h) / 2); commit() },
+                                    centerHorizontally = { draft = draft.copy(x = (1f - draft.w) / 2); commit() },
+                                    moveModifier = gesture(false), modifier = Modifier.align(Alignment.Center),
+                                )
+                            }
                         }
                     }
                 }

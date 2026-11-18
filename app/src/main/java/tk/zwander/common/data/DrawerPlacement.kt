@@ -15,6 +15,18 @@ data class DrawerPlacement(val page: Int, val x: Float, val y: Float, val w: Flo
             h = (h + dh).coerceIn(minH.coerceAtMost(roomH), roomH))
     }
 
+    fun resizeLeft(dx: Float, minWidth: Float): DrawerPlacement {
+        val right = (x + w).coerceAtMost(1f)
+        val left = (x + dx).coerceIn(0f, (right - minWidth).coerceAtLeast(0f))
+        return copy(x = left, w = right - left)
+    }
+
+    fun resizeTop(dy: Float, minHeight: Float): DrawerPlacement {
+        val bottom = (y + h).coerceAtMost(1f)
+        val top = (y + dy).coerceIn(0f, (bottom - minHeight).coerceAtLeast(0f))
+        return copy(y = top, h = bottom - top)
+    }
+
     companion object {
         fun next(used: List<DrawerPlacement>, width: Float, height: Float): DrawerPlacement {
             for (page in 0..((used.maxOfOrNull { it.page } ?: -1) + 1)) {
