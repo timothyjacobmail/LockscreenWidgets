@@ -2,6 +2,7 @@ package tk.zwander.common.compose.main
 
 import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -37,6 +38,8 @@ import tk.zwander.lockscreenwidgets.activities.ComposeFrameSettingsActivity
 import tk.zwander.lockscreenwidgets.activities.UsageActivity
 import tk.zwander.lockscreenwidgets.activities.add.AddFrameWidgetActivity
 import tk.zwander.lockscreenwidgets.appwidget.WidgetStackProvider
+import tk.zwander.lockscreenwidgets.ambient.AMBIENT_ENABLED
+import tk.zwander.lockscreenwidgets.ambient.AmbientSettingsActivity
 import tk.zwander.lockscreenwidgets.compose.SelectDisplayDialog
 import tk.zwander.lockscreenwidgets.util.WidgetFrameDelegate
 import tk.zwander.widgetdrawer.activities.ComposeDrawerSettingsActivity
@@ -159,6 +162,30 @@ fun rememberFeatureCards(): Map<String, List<FeatureCardInfo>> {
             ]
 
             map["ExtraFeatures"] = [
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    FeatureCardInfo(
+                        title = R.string.ambient_title,
+                        description = R.string.ambient_description,
+                        enabled = EnabledInfo(
+                            enabledLabel = R.string.enabled,
+                            disabledLabel = R.string.disabled,
+                            key = AMBIENT_ENABLED,
+                            isEnabled = { context.prefManager.getBoolean(AMBIENT_ENABLED, false) },
+                            onEnabledChanged = { enabled ->
+                                context.prefManager.putBoolean(AMBIENT_ENABLED, enabled)
+                                if (enabled) context.startActivity(Intent(context, AmbientSettingsActivity::class.java))
+                            },
+                        ),
+                        buttons = [
+                            MainPageButton(
+                                icon = R.drawable.ic_baseline_settings_24,
+                                title = R.string.settings,
+                            ) {
+                                context.startActivity(Intent(context, AmbientSettingsActivity::class.java))
+                            },
+                        ],
+                    )
+                } else null,
                 FeatureCardInfo(
                     title = R.string.widget_stacks,
                     description = if (updatedWidgetStackIds.isEmpty()) {

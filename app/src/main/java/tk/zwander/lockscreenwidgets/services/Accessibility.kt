@@ -15,6 +15,8 @@ import tk.zwander.common.util.*
 import tk.zwander.common.util.AccessibilityUtils.runAccessibilityJob
 import tk.zwander.common.util.AccessibilityUtils.runWindowOperation
 import tk.zwander.lockscreenwidgets.appwidget.IDListProvider
+import tk.zwander.lockscreenwidgets.ambient.AmbientDisplayController
+import tk.zwander.lockscreenwidgets.ambient.AmbientDisplayState
 import tk.zwander.lockscreenwidgets.appwidget.WidgetStackProvider
 import tk.zwander.lockscreenwidgets.util.FramePrefs
 import tk.zwander.lockscreenwidgets.util.FrameSpecificPreferences
@@ -88,6 +90,7 @@ class Accessibility : AccessibilityService(), CoroutineScope by MainScope(), Eve
 
     private var state = State()
     private var alreadyConnected = false
+    private var ambientDisplay: AmbientDisplayController? = null
 
     @SuppressLint("ClickableViewAccessibility", "NewApi")
     override fun onCreate() {
@@ -144,6 +147,15 @@ class Accessibility : AccessibilityService(), CoroutineScope by MainScope(), Eve
 
         eventManager.sendEvent(Event.RequestNotificationCount)
         eventManager.addObserver(this)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            ambientDisplay = AmbientDisplayController(this).also { it.start(this) }
+            launch {
+                AmbientDisplayState.showing.collect {
+                    frameDelegate.updateWindowState()
+                    FrameInstances.secondaryFrameDelegates.values.forEach { frame -> frame.updateWindowState() }
+                }
+            }
+        }
         logUtils.debugLog("Accessibility service connected.", null)
 
         launch(Dispatchers.Main) {
@@ -203,6 +215,7 @@ class Accessibility : AccessibilityService(), CoroutineScope by MainScope(), Eve
     }
 
     override fun onDestroy() {
+        ambientDisplay?.stop()
         super.onDestroy()
 
         sharedPreferencesChangeHandler.unregister(this)

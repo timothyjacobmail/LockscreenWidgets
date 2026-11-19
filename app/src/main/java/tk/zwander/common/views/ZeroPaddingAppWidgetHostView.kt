@@ -94,6 +94,7 @@ class ZeroPaddingAppWidgetHostView(
 
         if (oldViews != remoteViews) {
             context.widgetHostCompat.cachedRemoteViews[appWidgetId] = remoteViews
+            context.widgetHostCompat.remoteViewsUpdates.tryEmit(appWidgetId)
 
             findWidgetStackId()?.let {
                 WidgetStackProvider.update(App.instance, intArrayOf(it), true)

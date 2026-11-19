@@ -13,6 +13,8 @@ import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.withContext
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.android.AndroidClassLoadingStrategy
@@ -129,6 +131,10 @@ class WidgetHostCompat(
     }
 
     val cachedRemoteViews = HashMap<Int, RemoteViews?>()
+    internal val remoteViewsUpdates = MutableSharedFlow<Int>(
+        extraBufferCapacity = 32,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
 
     /**
      * Whether the host is actively receiving widget updates. The [cachedRemoteViews] cache is only

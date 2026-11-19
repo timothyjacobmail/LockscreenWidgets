@@ -34,7 +34,9 @@ class WidgetViewCacheRegistry private constructor(@Suppress("unused") private va
     private val cachedViews = ConcurrentHashMap<Int, AppWidgetHostView>()
     private val isListening = atomic(false)
 
-    fun getOrCreateView(context: Context, appWidgetId: Int, appWidget: AppWidgetProviderInfo): AppWidgetHostView {
+    fun getOrCreateView(
+        context: Context, appWidgetId: Int, appWidget: AppWidgetProviderInfo, detach: Boolean = true,
+    ): AppWidgetHostView {
         startListeningIfNeeded()
         context.appWidgetInfoCache[appWidgetId] = appWidget
 
@@ -62,7 +64,7 @@ class WidgetViewCacheRegistry private constructor(@Suppress("unused") private va
             context.widgetHostCompat.createView(
                 widgetContext ?: context, appWidgetId, appWidget,
             )
-        }.andRemoveFromParent()
+        }.let { if (detach) it.andRemoveFromParent() else it }
     }
 
     fun removeView(appWidgetId: Int) {

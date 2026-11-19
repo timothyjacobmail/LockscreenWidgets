@@ -422,6 +422,12 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
                     }
                 }
         }
+
+        viewModel.viewModelScope.launch {
+            tk.zwander.lockscreenwidgets.ambient.AmbientDisplayState.showing.collect { showing ->
+                if (showing) hideAll() else tryShowHandle()
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -458,6 +464,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
     private suspend fun tryShowHandle(): Unit = withContext(Dispatchers.Main) {
         handleTransitionMutex.withLock {
             if (!prefManager.drawerEnabled || !prefManager.showDrawerHandle ||
+                tk.zwander.lockscreenwidgets.ambient.AmbientDisplayState.showing.value ||
                 rootView.isAttachedToWindow ||
                 lsDisplayManager.displayPowerStates.value.displayStates[display?.uniqueIdCompat] != true ||
                 (prefManager.showDrawerHandleOnlyWhenLocked && !globalState.wasOnKeyguard.value)
@@ -497,7 +504,9 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
 
     private suspend fun showDrawer(hideHandle: Boolean = true): Unit = withContext(Dispatchers.Main) {
         drawerTransitionMutex.withLock {
-            if (lsDisplayManager.displayPowerStates.value.displayStates[display?.uniqueIdCompat] != true) {
+            if (tk.zwander.lockscreenwidgets.ambient.AmbientDisplayState.showing.value ||
+                lsDisplayManager.displayPowerStates.value.displayStates[display?.uniqueIdCompat] != true
+            ) {
                 return@withLock
             }
             // A button/tap may reopen an already attached, partially dragged drawer.

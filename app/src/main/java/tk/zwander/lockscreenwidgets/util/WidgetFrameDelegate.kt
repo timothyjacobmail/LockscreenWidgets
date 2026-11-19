@@ -666,6 +666,10 @@ open class WidgetFrameDelegate protected constructor(
      * =======
      */
     private fun canShow(): Boolean {
+        if (tk.zwander.lockscreenwidgets.ambient.AmbientDisplayState.showing.value &&
+            display?.displayId == Display.DEFAULT_DISPLAY
+        ) return false
+
         fun forPreview(): Boolean {
             return state.value.isPreview && !state.value.isTempHide && prefManager.widgetFrameEnabled
         }
