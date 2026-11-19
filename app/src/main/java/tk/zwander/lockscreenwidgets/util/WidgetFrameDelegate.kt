@@ -404,10 +404,12 @@ open class WidgetFrameDelegate protected constructor(
         }
     }
 
-    override fun onWidgetClick(trigger: Boolean): Boolean {
+    override fun onWidgetClick(trigger: Boolean, keepKeyguard: Boolean): Boolean {
         val ignoreTouches = framePrefs.ignoreWidgetTouches || globalState.itemIsActive.value[holderId] == true
 
-        if (!ignoreTouches) {
+        if (!ignoreTouches && keepKeyguard) {
+            globalState.handlingClick.remove(id)
+        } else if (!ignoreTouches) {
             if (trigger && prefManager.requestUnlock && prefManager.frameDirectlyCheckForActivity) {
                 DismissOrUnlockActivity.launch(this)
             } else {

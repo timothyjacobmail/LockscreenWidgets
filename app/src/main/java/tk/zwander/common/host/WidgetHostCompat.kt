@@ -10,6 +10,7 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.view.View
 import android.widget.RemoteViews
 import kotlinx.coroutines.Dispatchers
@@ -333,6 +334,21 @@ class WidgetHostCompat(
         protected val widgetId: Int,
     ) {
         companion object {
+            // An opt-in by a widget provider whose activity taps can run over the keyguard.
+            private const val KEEP_KEYGUARD = "tk.zwander.lockscreenwidgets.KEEP_KEYGUARD"
+
+            private fun handlesLockedLaunch(context: Context, widgetId: Int, intent: PendingIntent): Boolean {
+                if (!context.keyguardManager.isKeyguardLocked) return false
+                val provider = context.appWidgetInfoCache.getCached(widgetId)?.provider ?: return false
+                if (provider.packageName != intent.creatorPackage) return false
+                return try {
+                    context.packageManager.getReceiverInfo(provider, PackageManager.GET_META_DATA)
+                        .metaData?.getBoolean(KEEP_KEYGUARD) == true
+                } catch (_: PackageManager.NameNotFoundException) {
+                    false
+                }
+            }
+
             @SuppressLint("NewApi")
             fun checkPendingIntent(
                 context: Context,
@@ -352,7 +368,10 @@ class WidgetHostCompat(
                     // This package check is so the frame/drawer doesn't dismiss itself when the
                     // Open Drawer widget is tapped.
                     if (pendingIntent.creatorPackage != context.packageName) {
-                        callbackForWidget?.onWidgetClick(triggerUnlockOrDismiss) == true
+                        callbackForWidget?.onWidgetClick(
+                            triggerUnlockOrDismiss,
+                            keepKeyguard = triggerUnlockOrDismiss && handlesLockedLaunch(context, widgetId, pendingIntent),
+                        ) == true
                     } else {
                         true
                     }
@@ -450,7 +469,7 @@ class WidgetHostCompat(
 
     interface OnClickCallback {
         fun hasWidgetId(id: Int): Boolean
-        fun onWidgetClick(trigger: Boolean): Boolean
+        fun onWidgetClick(trigger: Boolean, keepKeyguard: Boolean): Boolean
         fun holderId(): Int
     }
 

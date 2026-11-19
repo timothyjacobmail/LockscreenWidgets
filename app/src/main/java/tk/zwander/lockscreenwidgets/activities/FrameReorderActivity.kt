@@ -137,7 +137,7 @@ class FrameReorderActivity : BaseActivity() {
 
         override suspend fun updateWindow() {}
 
-        override fun onWidgetClick(trigger: Boolean): Boolean {
+        override fun onWidgetClick(trigger: Boolean, keepKeyguard: Boolean): Boolean {
             return false
         }
 

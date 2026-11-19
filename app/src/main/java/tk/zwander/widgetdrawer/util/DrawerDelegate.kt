@@ -362,9 +362,12 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
         }
     }
 
-    override fun onWidgetClick(trigger: Boolean): Boolean {
+    override fun onWidgetClick(trigger: Boolean, keepKeyguard: Boolean): Boolean {
         return if (globalState.itemIsActive.value[holderId] != true) {
-            if (trigger && prefManager.requestUnlockDrawer && prefManager.drawerDirectlyCheckForActivity) {
+            if (keepKeyguard) {
+                globalState.handlingClick.remove(ID)
+                lifecycleScope.launch { hideDrawer() }
+            } else if (trigger && prefManager.requestUnlockDrawer && prefManager.drawerDirectlyCheckForActivity) {
                 DismissOrUnlockActivity.launch(this)
                 lifecycleScope.launch {
                     hideDrawer()
