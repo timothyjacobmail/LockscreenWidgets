@@ -22,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import tk.zwander.common.compose.util.widgetViewCacheRegistry
 import tk.zwander.common.host.widgetHostCompat
+import tk.zwander.common.util.keyguardManager
 import tk.zwander.common.util.logUtils
 import tk.zwander.common.util.prefManager
 import java.util.Calendar
@@ -34,18 +35,33 @@ internal class AmbientDisplayController(
     private val sensors = service.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val proximity = sensors.getDefaultSensor(Sensor.TYPE_PROXIMITY)
     private val prefs = service.prefManager.prefs
+    private val keyguard = service.keyguardManager
 
     private var sleepSession = false
     private var listening = false
     private var covered: Boolean? = null
     private var lastDisplayExit = -1000L
     private var activity: AmbientDisplayActivity? = null
+    private var authenticationRequired = false
     private var widgetJob: Job? = null
     private var badgeWidget: AmbientBadgeWidget? = null
     private val host get() = service.widgetHostCompat
     private val refreshDisplay = Runnable { refresh() }
     private val launchTimedOut = Runnable {
         if (activity == null) endSession()
+    }
+    private val unlockCheck = object : Runnable {
+        override fun run() {
+            if (activity == null) return
+            // Fingerprint unlock can clear authentication before the keyguard window goes away.
+            val deviceLocked = keyguard.isDeviceLocked
+            if (!keyguard.isKeyguardLocked || (authenticationRequired && !deviceLocked)) {
+                endSession()
+                return
+            }
+            authenticationRequired = authenticationRequired || deviceLocked
+            handler.postDelayed(this, 200)
+        }
     }
 
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -119,6 +135,8 @@ internal class AmbientDisplayController(
         val widget = badgeWidget ?: return null
         handler.removeCallbacks(launchTimedOut)
         activity = display
+        authenticationRequired = keyguard.isDeviceLocked
+        handler.post(unlockCheck)
         return widget
     }
 
@@ -192,11 +210,14 @@ internal class AmbientDisplayController(
 
     private fun stopDisplay(turnScreenOff: Boolean) {
         handler.removeCallbacks(launchTimedOut)
+        handler.removeCallbacks(unlockCheck)
         val display = activity
         activity = null
         val wasShowing = AmbientDisplayState.showing.value
         AmbientDisplayState.showing.value = false
-        if (turnScreenOff && wasShowing && power.isInteractive) {
+        if (turnScreenOff && wasShowing && power.isInteractive && keyguard.isKeyguardLocked &&
+            (!authenticationRequired || keyguard.isDeviceLocked)
+        ) {
             service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
         }
         display?.finish()
