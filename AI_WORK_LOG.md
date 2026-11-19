@@ -7,3 +7,4 @@
 - Pushed the working-tree changes in `d8bba22e` on `faster-widget-visibility`. The debug build and JVM unit-test task passed.
 - The APK already installed on the phone matches the verified debug build by SHA-256.
 - Device verification remains important for eligible widget taps over a locked keyguard, an unrelated provider's taps, and cleanup of the drawer and frame state during a tap.
+- The phone already had the matching APK. Its launcher opened and remained running.
