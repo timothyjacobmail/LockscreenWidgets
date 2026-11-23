@@ -2,6 +2,7 @@ package tk.zwander.lockscreenwidgets.services
 
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.os.Build
 import android.util.SparseArray
 import android.view.Display
@@ -176,6 +177,18 @@ class Accessibility : AccessibilityService(), CoroutineScope by MainScope(), Eve
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            val notification = event.parcelableData as? Notification ?: return
+            val ignoredFlags = Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE or
+                    Notification.FLAG_GROUP_SUMMARY
+            if (event.packageName != packageName && notification.flags and ignoredFlags == 0 &&
+                notification.visibility != Notification.VISIBILITY_SECRET
+            ) {
+                ambientDisplay?.onNewNotification()
+            }
+            return
+        }
+
         //Since we're launching our logic on the main Thread, it's possible
         //that [event] will be reused by Android, causing some crash issues.
         //Make a copy that is recycled later.

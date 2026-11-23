@@ -147,6 +147,13 @@ internal class AmbientDisplayController(
         endSession()
     }
 
+    fun onNewNotification() {
+        if (!sleepSession) return
+        // Cancel a pending dim-screen launch as well as a visible display.
+        lastDisplayExit = SystemClock.uptimeMillis()
+        endSession()
+    }
+
     override fun onSensorChanged(event: SensorEvent) {
         if (!listening) return
         val distance = event.values.firstOrNull() ?: return

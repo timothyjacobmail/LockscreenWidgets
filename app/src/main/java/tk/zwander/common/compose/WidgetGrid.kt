@@ -98,6 +98,7 @@ fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetGrid(
     lazyGridState: LazySpannedGridState = rememberLazySpannedGridState(),
     preferences: SharedPreferences = LocalContext.current.prefManager.prefs,
     blockIndividualWidgetTouches: Boolean = false,
+    preserveOnWidgetTap: Boolean = false,
 ) {
     var currentEditingId by currentEditingInterfaceId.collectAsMutableState()
 
@@ -277,6 +278,7 @@ fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetGrid(
                         )
                     },
                     blockIndividualWidgetTouches = blockIndividualWidgetTouches,
+                    preserveOnWidgetTap = preserveOnWidgetTap,
                 )
             }
         }
@@ -376,6 +378,7 @@ internal fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetItem(
     currentEditingId: String?,
     blockIndividualWidgetTouches: Boolean,
     modifier: Modifier = Modifier,
+    preserveOnWidgetTap: Boolean = false,
 ) {
     val context = LocalContext.current
     val manager = remember { context.appWidgetManager }
@@ -410,6 +413,7 @@ internal fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetItem(
                             modifier = Modifier.fillMaxSize(),
                             currentWidgets = currentWidgetsList,
                             onWidgetsChanged = updatedOnWidgetsChanged,
+                            preserveOnWidgetTap = preserveOnWidgetTap,
                         )
                     }
 
@@ -504,6 +508,7 @@ private fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetContents(
     currentWidgets: List<WidgetData>,
     onWidgetsChanged: (List<WidgetData>) -> Unit,
     modifier: Modifier = Modifier,
+    preserveOnWidgetTap: Boolean = false,
 ) {
     val manager = remember { context.appWidgetManager }
     val viewCacheRegistry = remember { context.widgetViewCacheRegistry }
@@ -642,7 +647,7 @@ private fun <VM : BaseDelegate.BaseViewModel<*, *>> VM.WidgetContents(
         }
 
         AndroidView(
-            factory = { FrameLayout(it) },
+            factory = { FrameLayout(it).apply { isClickable = preserveOnWidgetTap } },
             modifier = Modifier.fillMaxSize(),
             update = { container ->
                 val child = widgetView

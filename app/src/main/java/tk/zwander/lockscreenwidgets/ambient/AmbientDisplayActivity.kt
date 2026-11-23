@@ -10,6 +10,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -50,9 +51,10 @@ import tk.zwander.common.util.setThemedContent
 import tk.zwander.lockscreenwidgets.R
 
 internal class AmbientDisplayActivity : BaseActivity() {
-    private data class BadgeResourceIds(val settings: Int, val status: Int, val rows: Int, val label: Int)
+    private data class BadgeResourceIds(val settings: Int, val status: Int, val rows: Int, val label: Int, val count: Int)
 
     private var controller: AmbientDisplayController? = null
+    private var lastBadgeCounts: Map<String, Int>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,7 +120,7 @@ internal class AmbientDisplayActivity : BaseActivity() {
         }
         val badgeResourceIds = remember(providerResources) {
             fun id(name: String) = providerResources.getIdentifier(name, "id", widget.info.provider.packageName)
-            BadgeResourceIds(id("badge_settings"), id("badge_status"), id("badge_rows"), id("badge_label"))
+            BadgeResourceIds(id("badge_settings"), id("badge_status"), id("badge_rows"), id("badge_label"), id("badge_count"))
         }
         val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
             .takeIf { it > 0 } ?: widget.info.minWidth
@@ -152,15 +154,25 @@ internal class AmbientDisplayActivity : BaseActivity() {
                             view.findViewById<View>(badgeResourceIds.settings)?.visibility = View.GONE
                             view.findViewById<View>(badgeResourceIds.status)?.visibility = View.GONE
                             view.findViewById<LinearLayout>(badgeResourceIds.rows)?.apply {
+                                val counts = mutableMapOf<String, Int>()
                                 updateLayoutParams<FrameLayout.LayoutParams> {
                                     gravity = Gravity.CENTER
                                     marginEnd = 0
                                 }
                                 children.filterIsInstance<LinearLayout>().forEach { row ->
                                     row.gravity = Gravity.CENTER_HORIZONTAL
-                                    row.children.forEach {
-                                        it.findViewById<View>(badgeResourceIds.label)?.visibility = View.GONE
+                                    row.children.forEach { item ->
+                                        val label = item.findViewById<TextView>(badgeResourceIds.label)
+                                        val badge = item.findViewById<TextView>(badgeResourceIds.count)
+                                        val count = badge?.text?.toString()?.trimEnd('+')?.toIntOrNull()
+                                        if (label != null && count != null) counts[label.text.toString()] = count
+                                        label?.visibility = View.GONE
                                     }
+                                }
+                                val previous = lastBadgeCounts
+                                lastBadgeCounts = counts
+                                if (previous != null && counts.any { it.value > (previous[it.key] ?: 0) }) {
+                                    controller?.onNewNotification()
                                 }
                             }
                         },

@@ -754,7 +754,7 @@ object AccessibilityUtils {
                 getWindows = getWindows,
             )
 
-            // Some logic for making the drawer go away or system dialogs dismiss when widgets launch Activities indirectly.
+            // Dismiss the keyguard when widgets launch activities indirectly.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val matchesWindowsChanged =
                     event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
@@ -778,11 +778,6 @@ object AccessibilityUtils {
                 ) {
                     logUtils.debugLog("Starting dismiss Activity because of window change.", null)
                     DismissOrUnlockActivity.launch(context)
-
-                    if (globalState.handlingClick.value.containsKey(DrawerDelegate.ID)) {
-                        logUtils.debugLog("Hiding drawer because of window change", null)
-                        eventManager.sendEvent(Event.CloseDrawer)
-                    }
 
                     globalState.handlingClick.value = mapOf()
                 }

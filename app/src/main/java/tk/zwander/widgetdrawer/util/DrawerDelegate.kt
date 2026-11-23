@@ -34,6 +34,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -130,6 +131,8 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
 
     private var previousNonZeroCutout by mutableIntStateOf(0)
     private val windowUpdateRequests = Channel<Unit>(Channel.CONFLATED)
+    private val keyboardVisible: Boolean
+        get() = globalState.showingKeyboard.value[display?.displayId ?: Display.DEFAULT_DISPLAY] == true
 
     override val rootView by lazy {
         viewModel.createComposeViewHolder {
@@ -364,16 +367,11 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
 
     override fun onWidgetClick(trigger: Boolean, keepKeyguard: Boolean): Boolean {
         return if (globalState.itemIsActive.value[holderId] != true) {
-            if (keepKeyguard) {
-                globalState.handlingClick.remove(ID)
-                lifecycleScope.launch { hideDrawer() }
-            } else if (trigger && prefManager.requestUnlockDrawer && prefManager.drawerDirectlyCheckForActivity) {
-                DismissOrUnlockActivity.launch(this)
-                lifecycleScope.launch {
-                    hideDrawer()
-                }
-            } else {
-                if (prefManager.requestUnlockDrawer) {
+            globalState.handlingClick.remove(ID)
+            if (!keepKeyguard && prefManager.requestUnlockDrawer && keyguardManager.isKeyguardLocked) {
+                if (prefManager.drawerDirectlyCheckForActivity) {
+                    if (trigger) DismissOrUnlockActivity.launch(this)
+                } else {
                     globalState.handlingClick[ID] = Unit
                 }
             }
@@ -424,6 +422,14 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
                         hideAll()
                     }
                 }
+        }
+
+        viewModel.viewModelScope.launch {
+            globalState.showingKeyboard.map { keyboardVisible }.distinctUntilChanged().collect { visible ->
+                updateIgnoreDrawerTouches(viewModel.drawerAnimationState.value == AnimationState.REMOVING)
+                updateIgnoreHandleTouches(viewModel.handleAnimationState.value == AnimationState.REMOVING)
+                if (visible) forceWakelock(false, updateOverlay = rootView.isAttachedToWindow)
+            }
         }
 
         viewModel.viewModelScope.launch {
@@ -507,7 +513,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
 
     private suspend fun showDrawer(hideHandle: Boolean = true): Unit = withContext(Dispatchers.Main) {
         drawerTransitionMutex.withLock {
-            if (tk.zwander.lockscreenwidgets.ambient.AmbientDisplayState.showing.value ||
+            if (keyboardVisible || tk.zwander.lockscreenwidgets.ambient.AmbientDisplayState.showing.value ||
                 lsDisplayManager.displayPowerStates.value.displayStates[display?.uniqueIdCompat] != true
             ) {
                 return@withLock
@@ -594,21 +600,22 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
     }
 
     private suspend fun updateIgnoreDrawerTouches(ignore: Boolean) {
-        params.flags = if (ignore) {
-            params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-        } else {
-            params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-        }
-        updateOverlay()
+        val keyboardOpen = keyboardVisible
+        params.alpha = if (keyboardOpen) 0f else 1f
+        params.flags = params.flags and
+                (WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE).inv()
+        if (ignore || keyboardOpen) params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        if (keyboardOpen) params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        if (rootView.isAttachedToWindow) updateOverlay()
     }
 
     private fun updateIgnoreHandleTouches(ignore: Boolean) {
-        handleParams.flags = if (ignore) {
+        handleParams.flags = if (ignore || keyboardVisible) {
             handleParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         } else {
             handleParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         }
-        wm?.safeUpdateViewLayout(handle, handleParams)
+        if (handle.isAttachedToWindow) wm?.safeUpdateViewLayout(handle, handleParams)
     }
 
     class State
@@ -734,6 +741,7 @@ class DrawerDelegate private constructor(context: Context, displayId: String) :
                     minRowSpan = 5,
                     locked = drawerLocked,
                     itemSpacingKey = PrefManager.KEY_DRAWER_ITEM_SPACING,
+                    preserveOnWidgetTap = true,
                 )
             }
         }

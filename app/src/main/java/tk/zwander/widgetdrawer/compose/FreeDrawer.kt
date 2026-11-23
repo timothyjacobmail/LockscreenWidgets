@@ -156,7 +156,7 @@ internal fun DrawerDelegate.DrawerViewModel.FreeDrawer(
                         resizeThresholdPx = { if (it == WidgetResizeListener.Which.LEFT || it == WidgetResizeListener.Which.RIGHT) wide / columns else tall / rows },
                         onCurrentEditingIdChanged = { currentEditingInterfaceId.value = it }, index = placed.indexOf(item),
                         columnCount = columns, rowCount = rows, currentEditingId = if (locked) null else editingId,
-                        blockIndividualWidgetTouches = false)
+                        blockIndividualWidgetTouches = false, preserveOnWidgetTap = true)
                     if (arranging) {
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .16f))
                             .border(if (highlighted) 3.dp else 1.dp, Color.White).clickable { selected = item.gridId }.then(gesture(false)))
