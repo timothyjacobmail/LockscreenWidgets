@@ -22,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import tk.zwander.common.compose.util.widgetViewCacheRegistry
 import tk.zwander.common.host.widgetHostCompat
+import tk.zwander.common.util.PrefManager
 import tk.zwander.common.util.keyguardManager
 import tk.zwander.common.util.logUtils
 import tk.zwander.common.util.prefManager
@@ -44,7 +45,7 @@ internal class AmbientDisplayController(
     private var activity: AmbientDisplayActivity? = null
     private var authenticationRequired = false
     private var widgetJob: Job? = null
-    private var badgeWidget: AmbientBadgeWidget? = null
+    private var ambientWidget: AmbientWidget? = null
     private val host get() = service.widgetHostCompat
     private val refreshDisplay = Runnable { refresh() }
     private val launchTimedOut = Runnable {
@@ -65,6 +66,7 @@ internal class AmbientDisplayController(
     }
 
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == PrefManager.KEY_AMBIENT_WIDGET) endSession()
         if (key in setOf(AMBIENT_ENABLED, AMBIENT_QUIET_HOURS, AMBIENT_QUIET_START, AMBIENT_QUIET_END)) {
             refresh()
         }
@@ -116,7 +118,7 @@ internal class AmbientDisplayController(
         }, ContextCompat.RECEIVER_NOT_EXPORTED)
         widgetJob = scope.launch {
             host.remoteViewsUpdates.collect { id ->
-                if (badgeWidget?.id == id) refresh()
+                if (ambientWidget?.id == id) refresh()
             }
         }
     }
@@ -130,9 +132,9 @@ internal class AmbientDisplayController(
         current = null
     }
 
-    fun attach(display: AmbientDisplayActivity): AmbientBadgeWidget? {
+    fun attach(display: AmbientDisplayActivity): AmbientWidget? {
         if (!AmbientDisplayState.showing.value || !sleepSession || activity != null) return null
-        val widget = badgeWidget ?: return null
+        val widget = ambientWidget ?: return null
         handler.removeCallbacks(launchTimedOut)
         activity = display
         authenticationRequired = keyguard.isDeviceLocked
@@ -185,17 +187,19 @@ internal class AmbientDisplayController(
         if (!listening && proximity != null) {
             listening = sensors.registerListener(this, proximity, SensorManager.SENSOR_DELAY_NORMAL, handler)
         }
-        val widget = badgeWidget ?: service.findAmbientBadgeWidget()?.also {
-            badgeWidget = it
+        val widget = ambientWidget ?: service.findAmbientWidget()?.also {
+            ambientWidget = it
             try {
                 service.widgetViewCacheRegistry.getOrCreateView(service, it.id, it.info, detach = false)
             } catch (e: RuntimeException) {
-                service.logUtils.normalLog("Unable to load the NotiFilter badge widget", e)
+                service.logUtils.normalLog("Unable to load the dim-screen widget", e)
             }
         }
         val displayAllowed = (proximity == null || covered == false) &&
-                widget != null && host.cachedRemoteViews[widget.id] != null &&
-                Settings.Secure.getInt(service.contentResolver, AmbientDisplayState.LOCK_SCREEN_NOTIFICATIONS, 1) != 0
+                widget != null && (!widget.isBadge || (
+                    host.cachedRemoteViews[widget.id] != null &&
+                    Settings.Secure.getInt(service.contentResolver, AmbientDisplayState.LOCK_SCREEN_NOTIFICATIONS, 1) != 0
+                ))
         if (!displayAllowed) {
             stopDisplay(turnScreenOff = true)
         } else if (!AmbientDisplayState.showing.value && !power.isInteractive) {
@@ -236,7 +240,7 @@ internal class AmbientDisplayController(
         if (listening) sensors.unregisterListener(this)
         listening = false
         covered = null
-        badgeWidget = null
+        ambientWidget = null
         stopDisplay(turnScreenOff = false)
     }
 

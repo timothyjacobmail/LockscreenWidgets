@@ -4,9 +4,11 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.os.Build
 import android.os.Bundle
+import android.util.SizeF
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -29,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
@@ -43,10 +46,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import tk.zwander.common.activities.BaseActivity
+import tk.zwander.common.compose.util.widgetViewCacheRegistry
 import tk.zwander.common.host.widgetHostCompat
 import tk.zwander.common.util.RemoteViewsLayoutInflaterContext
 import tk.zwander.common.util.appWidgetManager
 import tk.zwander.common.util.keyguardManager
+import tk.zwander.common.util.logUtils
 import tk.zwander.common.util.setThemedContent
 import tk.zwander.lockscreenwidgets.R
 
@@ -76,7 +81,21 @@ internal class AmbientDisplayActivity : BaseActivity() {
         val insets = WindowCompat.getInsetsController(window, window.decorView)
         insets.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         insets.hide(WindowInsetsCompat.Type.systemBars())
-        setThemedContent { DisplayWidget(widget) }
+        if (widget.isBadge) {
+            setThemedContent { DisplayBadgeWidget(widget) }
+        } else {
+            val hostView = try {
+                widgetViewCacheRegistry.getOrCreateView(this, widget.id, widget.info)
+            } catch (e: RuntimeException) {
+                logUtils.normalLog("Unable to show the dim-screen widget", e)
+                finish()
+                return
+            }
+            hostView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            hostView.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            hostView.isFocusable = false
+            setThemedContent { DisplaySelectedWidget(widget, hostView) }
+        }
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -98,7 +117,7 @@ internal class AmbientDisplayActivity : BaseActivity() {
     }
 
     @Composable
-    private fun DisplayWidget(widget: AmbientBadgeWidget) {
+    private fun DisplayBadgeWidget(widget: AmbientWidget) {
         val host = widgetHostCompat
         var views by remember(widget.id) { mutableStateOf(host.cachedRemoteViews[widget.id]) }
         var position by remember { mutableIntStateOf(0) }
@@ -179,6 +198,45 @@ internal class AmbientDisplayActivity : BaseActivity() {
                     )
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun DisplaySelectedWidget(widget: AmbientWidget, hostView: AppWidgetHostView) {
+        val density = LocalDensity.current
+        var position by remember { mutableIntStateOf(0) }
+        LaunchedEffect(Unit) {
+            while (isActive) {
+                delay(60_000)
+                position = (position + 1) % 9
+            }
+        }
+        val dismissLabel = stringResource(R.string.ambient_return_to_lock_screen)
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize().background(Color.Black)
+                .semantics { onClick(dismissLabel) { finish(); true } }
+                .safeDrawingPadding().padding(16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            val width = with(density) { widget.info.minWidth.toDp() }.coerceIn(1.dp, maxWidth)
+            val height = with(density) { widget.info.minHeight.toDp() }.coerceIn(1.dp, maxHeight)
+            LaunchedEffect(hostView, width, height) {
+                val options = appWidgetManager.getAppWidgetOptions(widget.id)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    hostView.updateAppWidgetSize(options, listOf(SizeF(width.value, height.value)))
+                } else {
+                    @Suppress("DEPRECATION")
+                    hostView.updateAppWidgetSize(
+                        options, width.value.toInt(), height.value.toInt(), width.value.toInt(), height.value.toInt(),
+                    )
+                }
+            }
+            AndroidView(
+                factory = { hostView },
+                modifier = Modifier
+                    .offset(((position % 3 - 1) * 8).dp, ((position / 3 - 1) * 8).dp)
+                    .size(width, height),
+            )
         }
     }
 }

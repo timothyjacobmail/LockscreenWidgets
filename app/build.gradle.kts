@@ -29,8 +29,8 @@ android {
         applicationId = "tk.zwander.lockscreenwidgets"
         minSdk = minSdkVersion
         targetSdk = targetSdkVersion
-        versionCode = 229
-        versionName = "4.7.4-fast.9"
+        versionCode = 230
+        versionName = "4.7.4-fast.10"
 
         manifestPlaceholders["build_uuid"] = UUID.nameUUIDFromBytes("LockscreenWidgets_${versionCode}".toByteArray()).toString()
         manifestPlaceholders["isDebug"] = false

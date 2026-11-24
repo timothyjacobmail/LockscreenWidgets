@@ -63,6 +63,9 @@
         <activity android:name="tk.zwander.lockscreenwidgets.ambient.AmbientSettingsActivity"
             android:exported="false"
             android:theme="@style/AppTheme.NoActionBar" />
+        <activity android:name="tk.zwander.lockscreenwidgets.ambient.AddAmbientWidgetActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
         <activity android:name="tk.zwander.lockscreenwidgets.ambient.AmbientDisplayActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false"

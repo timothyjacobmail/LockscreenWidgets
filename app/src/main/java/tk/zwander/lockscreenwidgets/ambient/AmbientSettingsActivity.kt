@@ -34,13 +34,14 @@ import tk.zwander.common.activities.BaseActivity
 import tk.zwander.common.compose.util.rememberBooleanPreferenceState
 import tk.zwander.common.compose.util.rememberIntPreferenceState
 import tk.zwander.common.util.isAccessibilityEnabled
+import tk.zwander.common.util.idManager
+import tk.zwander.common.util.prefManager
 import tk.zwander.common.util.setThemedContent
 import tk.zwander.lockscreenwidgets.R
-import tk.zwander.widgetdrawer.activities.add.AddDrawerWidgetActivity
 import java.util.Calendar
 
 internal class AmbientSettingsActivity : BaseActivity() {
-    private var hasBadgeWidget by mutableStateOf(false)
+    private var widget by mutableStateOf<AmbientWidget?>(null)
     private var hasAccessibilityAccess by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,10 +66,23 @@ internal class AmbientSettingsActivity : BaseActivity() {
                             Text(stringResource(R.string.ambient_accessibility))
                         }
                     }
-                    Text(stringResource(if (hasBadgeWidget) R.string.ambient_linked else R.string.ambient_missing_widget))
-                    if (!hasBadgeWidget) {
-                        Button(onClick = { AddDrawerWidgetActivity.launch(this@AmbientSettingsActivity, false) }) {
-                            Text(stringResource(R.string.add_widget))
+                    val current = widget
+                    Text(when {
+                        current == null -> stringResource(R.string.ambient_missing_widget)
+                        !current.isSelected -> stringResource(R.string.ambient_linked)
+                        else -> stringResource(R.string.ambient_selected_widget, current.info.loadLabel(packageManager))
+                    })
+                    Text(stringResource(R.string.ambient_widget_privacy))
+                    Button(onClick = { startActivity(Intent(this@AmbientSettingsActivity, AddAmbientWidgetActivity::class.java)) }) {
+                        Text(stringResource(if (current == null || !current.isSelected) R.string.add_widget else R.string.ambient_change_widget))
+                    }
+                    if (current?.isSelected == true) {
+                        TextButton(onClick = {
+                            prefManager.ambientWidget = null
+                            idManager.removeId(current.id)
+                            widget = findAmbientWidget()
+                        }) {
+                            Text(stringResource(R.string.ambient_remove_widget))
                         }
                     }
                     Spacer(Modifier.height(8.dp))
@@ -91,7 +105,7 @@ internal class AmbientSettingsActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
-        hasBadgeWidget = findAmbientBadgeWidget() != null
+        widget = findAmbientWidget()
         hasAccessibilityAccess = isAccessibilityEnabled
     }
 

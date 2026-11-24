@@ -94,6 +94,7 @@ class PrefManager private constructor(private val context: Context) {
         const val KEY_BLUR_DRAWER_BACKGROUND_AMOUNT = "blur_drawer_background_amount"
         const val KEY_MASKED_MODE_DIM_AMOUNT = "masked_mode_wallpaper_dim_amount"
         const val KEY_DRAWER_WIDGETS = "drawer_widgets"
+        const val KEY_AMBIENT_WIDGET = "ambient_widget"
         const val KEY_DRAWER_COL_COUNT = "drawer_col_count"
         const val KEY_CLOSE_DRAWER_ON_EMPTY_TAP = "close_drawer_on_empty_tap"
         const val KEY_SHOW_DRAWER_HANDLE = "show_drawer_handle"
@@ -218,6 +219,10 @@ class PrefManager private constructor(private val context: Context) {
         set(value) {
             putString(KEY_DRAWER_WIDGETS, value)
         }
+
+    var ambientWidget: WidgetData?
+        get() = gson.safeFromJson<WidgetData>(getString(KEY_AMBIENT_WIDGET))
+        set(value) = putString(KEY_AMBIENT_WIDGET, value?.let { gson.toJson(it) })
 
     //The shortcuts currently added to the widget frame
     var shortcutIds: LinkedHashSet<String>

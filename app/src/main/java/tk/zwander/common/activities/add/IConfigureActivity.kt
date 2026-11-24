@@ -11,3 +11,5 @@ sealed interface IConfigureActivity : IRowColumProvider, ICurrentWidgetsProvider
 interface IFrameConfigureActivity : IConfigureActivity, IFrameProvider
 
 interface IDrawerConfigureActivity : IConfigureActivity, IDrawerProvider
+
+internal interface IAmbientConfigureActivity : IConfigureActivity
