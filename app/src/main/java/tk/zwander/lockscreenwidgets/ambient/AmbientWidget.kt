@@ -12,14 +12,13 @@ internal data class AmbientWidget(val id: Int, val info: AppWidgetProviderInfo, 
                 info.provider.packageName in setOf("co.adityarajput.notifilter", "co.adityarajput.notifilter.debug")
 }
 
-internal fun Context.findAmbientWidget(): AmbientWidget? {
-    val selectedId = prefManager.ambientWidget?.id
-    if (selectedId != null) {
-        val info = appWidgetManager.getAppWidgetInfo(selectedId)
-        if (info != null) return AmbientWidget(selectedId, info, isSelected = true)
+internal fun Context.findAmbientWidgets(): List<AmbientWidget> {
+    val selected = prefManager.ambientWidgets.mapNotNull { item ->
+        appWidgetManager.getAppWidgetInfo(item.id)?.let { AmbientWidget(item.id, it, isSelected = true) }
     }
-    return idManager.collectAllIds().firstNotNullOfOrNull { id ->
+    if (selected.isNotEmpty()) return selected
+    return listOfNotNull(idManager.collectAllIds().firstNotNullOfOrNull { id ->
         val info = appWidgetManager.getAppWidgetInfo(id) ?: return@firstNotNullOfOrNull null
         AmbientWidget(id, info, isSelected = false).takeIf { it.isBadge }
-    }
+    })
 }

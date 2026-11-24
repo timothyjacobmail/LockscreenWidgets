@@ -16,11 +16,6 @@ internal class AddAmbientWidgetActivity : AddWidgetActivity(), IAmbientConfigure
         get() = resources.configuration.screenHeightDp.toFloat()
 
     override var currentWidgets: Set<WidgetData>
-        get() = setOfNotNull(prefManager.ambientWidget)
-        set(value) {
-            val previous = prefManager.ambientWidget?.id
-            val selected = value.lastOrNull()
-            prefManager.ambientWidget = selected
-            if (previous != null && previous != selected?.id) idManager.removeId(previous)
-        }
+        get() = prefManager.ambientWidgets
+        set(value) { prefManager.ambientWidgets = value }
 }

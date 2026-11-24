@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="ambient_title">Always-on notifications</string>
-    <string name="ambient_description">Show a widget on a dim black screen when the phone locks.</string>
+    <string name="ambient_description">Show widgets on a dim black screen when the phone locks.</string>
     <string name="ambient_details">Tap the display to return to your lock screen. Keeping the display active uses battery.</string>
     <string name="ambient_pocket">The display stays off while the proximity sensor is covered.</string>
     <string name="ambient_no_proximity">Pocket detection requires a proximity sensor.</string>
@@ -14,8 +14,8 @@
     <string name="ambient_missing_widget">Choose a widget for the dim screen.</string>
     <string name="ambient_selected_widget">Selected widget: %1$s</string>
     <string name="ambient_widget_privacy">The selected widget is visible before you unlock your phone.</string>
-    <string name="ambient_change_widget">Change widget</string>
-    <string name="ambient_remove_widget">Remove selected widget</string>
+    <string name="ambient_arrange_widgets">Arrange widgets</string>
+    <string name="ambient_remove_widget">Remove</string>
     <string name="ambient_return_to_lock_screen">Return to lock screen</string>
     <string name="ambient_back">Back</string>
 </resources>

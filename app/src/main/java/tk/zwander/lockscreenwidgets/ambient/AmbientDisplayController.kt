@@ -45,7 +45,7 @@ internal class AmbientDisplayController(
     private var activity: AmbientDisplayActivity? = null
     private var authenticationRequired = false
     private var widgetJob: Job? = null
-    private var ambientWidget: AmbientWidget? = null
+    private var widgets: List<AmbientWidget>? = null
     private val host get() = service.widgetHostCompat
     private val refreshDisplay = Runnable { refresh() }
     private val launchTimedOut = Runnable {
@@ -66,7 +66,7 @@ internal class AmbientDisplayController(
     }
 
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == PrefManager.KEY_AMBIENT_WIDGET) endSession()
+        if (key == PrefManager.KEY_AMBIENT_WIDGETS) endSession()
         if (key in setOf(AMBIENT_ENABLED, AMBIENT_QUIET_HOURS, AMBIENT_QUIET_START, AMBIENT_QUIET_END)) {
             refresh()
         }
@@ -118,7 +118,7 @@ internal class AmbientDisplayController(
         }, ContextCompat.RECEIVER_NOT_EXPORTED)
         widgetJob = scope.launch {
             host.remoteViewsUpdates.collect { id ->
-                if (ambientWidget?.id == id) refresh()
+                if (widgets?.any { it.id == id } == true) refresh()
             }
         }
     }
@@ -132,14 +132,14 @@ internal class AmbientDisplayController(
         current = null
     }
 
-    fun attach(display: AmbientDisplayActivity): AmbientWidget? {
+    fun attach(display: AmbientDisplayActivity): List<AmbientWidget>? {
         if (!AmbientDisplayState.showing.value || !sleepSession || activity != null) return null
-        val widget = ambientWidget ?: return null
+        val selected = widgets ?: return null
         handler.removeCallbacks(launchTimedOut)
         activity = display
         authenticationRequired = keyguard.isDeviceLocked
         handler.post(unlockCheck)
-        return widget
+        return selected
     }
 
     fun activityStopped(display: AmbientDisplayActivity) {
@@ -187,19 +187,20 @@ internal class AmbientDisplayController(
         if (!listening && proximity != null) {
             listening = sensors.registerListener(this, proximity, SensorManager.SENSOR_DELAY_NORMAL, handler)
         }
-        val widget = ambientWidget ?: service.findAmbientWidget()?.also {
-            ambientWidget = it
-            try {
-                service.widgetViewCacheRegistry.getOrCreateView(service, it.id, it.info, detach = false)
-            } catch (e: RuntimeException) {
-                service.logUtils.normalLog("Unable to load the dim-screen widget", e)
+        val selected = widgets ?: service.findAmbientWidgets().also { found ->
+            widgets = found
+            found.forEach {
+                try {
+                    service.widgetViewCacheRegistry.getOrCreateView(service, it.id, it.info, detach = false)
+                } catch (e: RuntimeException) {
+                    service.logUtils.normalLog("Unable to load the dim-screen widget", e)
+                }
             }
         }
-        val displayAllowed = (proximity == null || covered == false) &&
-                widget != null && (!widget.isBadge || (
-                    host.cachedRemoteViews[widget.id] != null &&
-                    Settings.Secure.getInt(service.contentResolver, AmbientDisplayState.LOCK_SCREEN_NOTIFICATIONS, 1) != 0
-                ))
+        val displayAllowed = (proximity == null || covered == false) && selected.any {
+            it.isSelected || (host.cachedRemoteViews[it.id] != null &&
+                Settings.Secure.getInt(service.contentResolver, AmbientDisplayState.LOCK_SCREEN_NOTIFICATIONS, 1) != 0)
+        }
         if (!displayAllowed) {
             stopDisplay(turnScreenOff = true)
         } else if (!AmbientDisplayState.showing.value && !power.isInteractive) {
@@ -240,7 +241,7 @@ internal class AmbientDisplayController(
         if (listening) sensors.unregisterListener(this)
         listening = false
         covered = null
-        ambientWidget = null
+        widgets = null
         stopDisplay(turnScreenOff = false)
     }
 

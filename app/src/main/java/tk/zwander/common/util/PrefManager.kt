@@ -94,6 +94,7 @@ class PrefManager private constructor(private val context: Context) {
         const val KEY_BLUR_DRAWER_BACKGROUND_AMOUNT = "blur_drawer_background_amount"
         const val KEY_MASKED_MODE_DIM_AMOUNT = "masked_mode_wallpaper_dim_amount"
         const val KEY_DRAWER_WIDGETS = "drawer_widgets"
+        const val KEY_AMBIENT_WIDGETS = "ambient_widgets"
         const val KEY_AMBIENT_WIDGET = "ambient_widget"
         const val KEY_DRAWER_COL_COUNT = "drawer_col_count"
         const val KEY_CLOSE_DRAWER_ON_EMPTY_TAP = "close_drawer_on_empty_tap"
@@ -220,9 +221,23 @@ class PrefManager private constructor(private val context: Context) {
             putString(KEY_DRAWER_WIDGETS, value)
         }
 
-    var ambientWidget: WidgetData?
-        get() = gson.safeFromJson<WidgetData>(getString(KEY_AMBIENT_WIDGET))
-        set(value) = putString(KEY_AMBIENT_WIDGET, value?.let { gson.toJson(it) })
+    var ambientWidgets: Set<WidgetData>
+        get() = withAmbientPlacements(gson.safeFromJson<Set<WidgetData>>(getString(KEY_AMBIENT_WIDGETS))
+            ?: setOfNotNull(gson.safeFromJson<WidgetData>(getString(KEY_AMBIENT_WIDGET))))
+        set(value) = putString(KEY_AMBIENT_WIDGETS, gson.toJson(withAmbientPlacements(value)))
+
+    private fun withAmbientPlacements(widgets: Set<WidgetData>): Set<WidgetData> {
+        val used = widgets.mapNotNull { it.drawerPlacement }.toMutableList()
+        return widgets.mapIndexed { index, widget ->
+            if (widget.drawerPlacement != null) widget else {
+                val placement = tk.zwander.common.data.DrawerPlacement.next(used, .46f, .21f)
+                val offset = (index % 5) * .04f
+                val bounds = if (placement.page == 0) placement else placement.copy(page = 0, x = offset, y = offset)
+                used.add(bounds)
+                widget.copy(drawerPlacement = bounds)
+            }
+        }.toSet()
+    }
 
     //The shortcuts currently added to the widget frame
     var shortcutIds: LinkedHashSet<String>

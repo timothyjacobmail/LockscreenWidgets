@@ -41,7 +41,7 @@ import tk.zwander.lockscreenwidgets.R
 import java.util.Calendar
 
 internal class AmbientSettingsActivity : BaseActivity() {
-    private var widget by mutableStateOf<AmbientWidget?>(null)
+    private var widgets by mutableStateOf(emptyList<AmbientWidget>())
     private var hasAccessibilityAccess by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,24 +66,27 @@ internal class AmbientSettingsActivity : BaseActivity() {
                             Text(stringResource(R.string.ambient_accessibility))
                         }
                     }
-                    val current = widget
-                    Text(when {
-                        current == null -> stringResource(R.string.ambient_missing_widget)
-                        !current.isSelected -> stringResource(R.string.ambient_linked)
-                        else -> stringResource(R.string.ambient_selected_widget, current.info.loadLabel(packageManager))
-                    })
+                    if (widgets.isEmpty()) Text(stringResource(R.string.ambient_missing_widget))
+                    if (widgets.firstOrNull()?.isSelected == false) Text(stringResource(R.string.ambient_linked))
                     Text(stringResource(R.string.ambient_widget_privacy))
                     Button(onClick = { startActivity(Intent(this@AmbientSettingsActivity, AddAmbientWidgetActivity::class.java)) }) {
-                        Text(stringResource(if (current == null || !current.isSelected) R.string.add_widget else R.string.ambient_change_widget))
+                        Text(stringResource(R.string.add_widget))
                     }
-                    if (current?.isSelected == true) {
-                        TextButton(onClick = {
-                            prefManager.ambientWidget = null
-                            idManager.removeId(current.id)
-                            widget = findAmbientWidget()
-                        }) {
-                            Text(stringResource(R.string.ambient_remove_widget))
-                        }
+                    val selected = widgets.filter { it.isSelected }
+                    if (selected.isNotEmpty()) {
+                        Button(onClick = {
+                            startActivity(Intent(this@AmbientSettingsActivity, AmbientDisplayActivity::class.java)
+                                .putExtra(AmbientDisplayActivity.EDIT_LAYOUT, true))
+                        }) { Text(stringResource(R.string.ambient_arrange_widgets)) }
+                    }
+                    selected.forEach { current ->
+                        ListItem(trailingContent = {
+                            TextButton(onClick = {
+                                prefManager.ambientWidgets = prefManager.ambientWidgets.filterNot { it.id == current.id }.toSet()
+                                idManager.removeId(current.id)
+                                widgets = findAmbientWidgets()
+                            }) { Text(stringResource(R.string.ambient_remove_widget)) }
+                        }) { Text(current.info.loadLabel(packageManager)) }
                     }
                     Spacer(Modifier.height(8.dp))
                     ListItem(
@@ -105,7 +108,7 @@ internal class AmbientSettingsActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
-        widget = findAmbientWidget()
+        widgets = findAmbientWidgets()
         hasAccessibilityAccess = isAccessibilityEnabled
     }
 

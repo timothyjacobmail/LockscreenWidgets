@@ -57,7 +57,7 @@ class IDManager private constructor(private val context: Context) {
         return context.prefManager.shortcutIds.map { it.toInt() } +
                 context.prefManager.currentWidgets.map { it.id } +
                 context.prefManager.drawerWidgets.map { it.id } +
-                listOfNotNull(context.prefManager.ambientWidget?.id) +
+                context.prefManager.ambientWidgets.map { it.id } +
                 context.prefManager.widgetStackWidgets.flatMap { entry -> [entry.key] + entry.value.map { it.id } } +
                 context.prefManager.currentSecondaryFramesWithStringDisplay.flatMap { [frameId] ->
                     FramePrefs.getWidgetsForFrame(context, frameId).map { it.id }
